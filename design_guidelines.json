@@ -1,0 +1,204 @@
+{
+  "app_name": "PAID LIFT",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A deeply trusted, highly readable interface that feels as safe and reliable as a well-lit highway, driven by warm earthy accents and crisp typography.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#1A1B1F",
+    "surfaceSecondary": "#F5F6F8",
+    "onSurfaceSecondary": "#4A4D55",
+    "surfaceTertiary": "#EBECEF",
+    "onSurfaceTertiary": "#71747E",
+    "surfaceInverse": "#1A1B1F",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#EF6C00",
+    "brandPrimary": "#EF6C00",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#FFE0B2",
+    "onBrandSecondary": "#E65100",
+    "brandTertiary": "#FFF3E0",
+    "onBrandTertiary": "#EF6C00",
+    "success": "#2E7D32",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F57C00",
+    "onWarning": "#FFFFFF",
+    "error": "#D32F2F",
+    "onError": "#FFFFFF",
+    "info": "#0277BD",
+    "onInfo": "#FFFFFF",
+    "border": "#E0E2E7",
+    "borderStrong": "#C2C5CD",
+    "divider": "#EBECEF"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Use 24pt/32pt padding around major containers, avoiding dense cramped forms. Keep form inputs large and easy to tap.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar (when content scrolls behind it)",
+      "Sticky header over scrolling ride results",
+      "Floating action buttons or bottom sheet drag handles"
+    ],
+    "dont's": [
+      "Form fields",
+      "List rows",
+      "Primary buttons"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Onboarding & Auth",
+      "purpose": "Welcome the user, explain the marketplace, and authenticate using mocked Aadhaar OTP.",
+      "states": {
+        "loading": "Spinner overlaid on disabled form.",
+        "empty": "N/A",
+        "error": "Inline red text below the OTP input or generic error toast."
+      },
+      "layout": "Full-bleed imagery on top. A bottom sheet (glass or solid surface) slides up with phone number input. Next step shows OTP. Then a two-card selection grid: 'I want to Find a Ride' vs 'I want to Offer a Ride'."
+    },
+    {
+      "name": "Home",
+      "purpose": "The primary dashboard to either search for rides or jump into offering a ride.",
+      "states": {
+        "loading": "Skeleton loaders for the recent searches/rides.",
+        "empty": "Clean illustration showing a car on a road, prompting the user to search their first ride.",
+        "error": "Error message with a Retry button."
+      },
+      "layout": "Header with user avatar, name, and mocked Aadhaar 'Verified' badge. Below, a large segmented control (pill style) to toggle between 'Find Ride' and 'Offer Ride'. 'Find Ride' tab shows a prominent stacked card with From, To, Date, and Passengers, plus a large sticky sticky 'Search' CTA. Below search: 'Recent Routes' as horizontal chips."
+    },
+    {
+      "name": "Search Results",
+      "purpose": "List available rides matching the user's criteria.",
+      "states": {
+        "loading": "Skeleton cards representing drivers and routes.",
+        "empty": "Illustration of an empty road: 'No rides found for this date. Try adjusting your filters.'",
+        "error": "Error fetching rides -> Retry."
+      },
+      "layout": "Sticky glass header showing the route summary and a 'Filter' icon. Below, a vertically scrolling list of Driver Cards. Driver Card layout: Top row (Driver photo + Rating + Vehicle type icon), Middle row (Time, Route dots, Seats available), Bottom row (Price per seat prominently displayed in brandPrimary color). Generous md/lg margin around cards."
+    },
+    {
+      "name": "Ride Details & Booking",
+      "purpose": "Review driver profile, car details, route, and confirm the booking.",
+      "states": {
+        "loading": "Spinner centered on screen.",
+        "empty": "N/A",
+        "error": "Could not load ride -> Retry."
+      },
+      "layout": "Top half is a Map placeholder image (showing the route). Bottom half is a bottom sheet (border-top-radius lg) with Driver details, Car Details (Make/Model, Registration, Insurance tick), strict cancellation policy, and a sticky primary CTA at the bottom ('Book for ₹XXX')."
+    },
+    {
+      "name": "Offer a Ride Form",
+      "purpose": "Step-by-step form for vehicle owners to list their empty seats.",
+      "states": {
+        "loading": "Saving ride -> spinner overlay.",
+        "empty": "N/A",
+        "error": "Validation errors outlined in red."
+      },
+      "layout": "Progressive disclosure form. Step 1: Route (From/To/Stops). Step 2: Date & Time. Step 3: Vehicle selection (from pre-added profile vehicles). Step 4: Seat count and Price per seat. Final sticky CTA 'Publish Ride' at bottom."
+    },
+    {
+      "name": "Bookings Management (Passenger/Owner)",
+      "purpose": "View upcoming and past rides.",
+      "states": {
+        "loading": "Skeleton list.",
+        "empty": "Illustration of an empty car seat: 'You have no upcoming rides.'",
+        "error": "Failed to load bookings -> Retry."
+      },
+      "layout": "Top segmented control (Upcoming / Past). List of cards showing route, date, and status pill (Pending, Accepted, Completed). For owners, tapping a 'Pending' card opens a modal to Accept/Reject the passenger."
+    },
+    {
+      "name": "In-App Chat",
+      "purpose": "Allow passengers and drivers to communicate before the ride.",
+      "states": {
+        "loading": "Skeleton bubbles.",
+        "empty": "Illustration: 'Say hi to coordinate your pickup.'",
+        "error": "Connection lost banner."
+      },
+      "layout": "Standard chat layout. Safe area top with driver details and call button. Left/Right aligned chat bubbles. Input field sticky at bottom above keyboard using KeyboardAvoidingView."
+    },
+    {
+      "name": "Wallet & Payments",
+      "purpose": "Manage balance and see payment history.",
+      "states": {
+        "loading": "Skeleton balance.",
+        "empty": "No transactions yet.",
+        "error": "Failed to load wallet."
+      },
+      "layout": "Top: Large card showing Current Balance and 'Add Money'/'Withdraw' buttons. Below: List of recent transactions (Money added, Ride paid, Commission deducted). Use green for credits, dark grey for debits."
+    },
+    {
+      "name": "Live Tracking & SOS",
+      "purpose": "Track the ongoing ride and provide emergency access.",
+      "states": {
+        "loading": "Map loading.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Full-bleed map interface. Bottom sheet (glass) with ETA, Driver details, and next turn info. A prominent floating, red, circular SOS button (`error` color) in the bottom right, above the sheet."
+    }
+  ],
+  "images": {
+    "onboarding_hero": {
+      "url": "https://images.unsplash.com/photo-1521136095380-08fbd7be93c8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxoaWdod2F5JTIwZHJpdmluZyUyMGNhciUyMHN1bnNldCUyMHdhcm18ZW58MHx8fHwxNzg2MDg5ODgzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "man driving car during golden hour on highway"
+    },
+    "empty_state_rides": {
+      "url": "https://images.unsplash.com/photo-1624884269715-70759892cd29?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMGNhciUyMHNlYXQlMjBpbnNpZGUlMjBjbGVhbnxlbnwwfHx8fDE3ODYwODk4ODN8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "empty clean car seat inside"
+    },
+    "city_taxi_banner": {
+      "url": "https://images.unsplash.com/photo-1770022268346-3a5d921639d1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHw0fHxJbmRpYW4lMjBtb2Rlcm4lMjBjaXR5JTIwc3RyZWV0JTIwY2FyJTIwc2Nvb3RlciUyMHRheGl8ZW58MHx8fHwxNzg2MDg5ODgzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Red car parked on a busy city street"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the '1 iOS-Native Clean' personality with warm earthy accents (brand: #EF6C00). Avoid generic blues/indigos entirely.",
+    "Implement the 'Find a Ride' vs 'Offer a Ride' as a massive segmented control on the Home screen to clarify user intent immediately.",
+    "Ensure 'Aadhaar Verified' (mocked) badges use the 'success' color (#2E7D32) and appear on driver profiles and cards to establish trust.",
+    "In the search results list, each driver card MUST have a photo/avatar and show clear total price, seat count, and ratings. Space them out generously (lg/xl margins).",
+    "Use a gradient scrim (top to bottom, transparent to dark) whenever text is placed over imagery (e.g., in onboarding).",
+    "For the Ride Booking and Offer Ride flows, ensure primary CTAs (Search, Book, Publish) are sticky at the bottom of the screen with proper safe area padding, outside the scrolling view.",
+    "Mock the map using a static image placeholder or a minimal map view, but ensure it occupies the top half of the screen in the 'Ride Details' and 'Live Tracking' screens.",
+    "Apply 'expo-blur' (glass effect) to the bottom tab bar and sticky headers in scrolling views."
+  ]
+}
