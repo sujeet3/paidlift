@@ -1,8 +1,21 @@
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { View, ActivityIndicator } from "react-native";
 import { colors } from "@/src/theme";
+import { useUser } from "@/src/context/user";
 
 export default function TabsLayout() {
+  const { user, loading } = useUser();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
+        <ActivityIndicator color={colors.brandPrimary} size="large" />
+      </View>
+    );
+  }
+  if (!user) return <Redirect href="/onboarding" />;
+
   return (
     <Tabs
       screenOptions={{
