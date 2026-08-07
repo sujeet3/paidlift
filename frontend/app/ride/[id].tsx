@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, router } from "expo-router";
 
 import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
 import { colors, spacing, radius, type, VEHICLE_TYPES } from "@/src/theme";
-
-const MAP = "https://images.unsplash.com/photo-1523666045320-73edd7d5c53f?w=800&auto=format&fit=crop";
+import RideMap from "@/src/components/RideMap";
+import { fetchDirections, formatEta, formatDistance, DirectionsResult } from "@/src/maps";
 
 export default function RideDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useUser();
   const [ride, setRide] = useState<any>(null);
+  const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [seats, setSeats] = useState(1);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
@@ -25,6 +24,10 @@ export default function RideDetails() {
       try {
         const r = await api.getRide(id!);
         setRide(r);
+        try {
+          const d = await fetchDirections(r.from_location, r.to_location, r.stops || []);
+          setDirections(d);
+        } catch {}
       } catch {}
       setLoading(false);
     })();
@@ -68,12 +71,19 @@ export default function RideDetails() {
   return (
     <View style={styles.root}>
       <View style={styles.mapWrap}>
-        <Image source={MAP} style={styles.map} contentFit="cover" />
-        <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent"]} style={styles.mapScrim} />
+        <RideMap polyline={directions?.overviewPolyline} showDriver={false} />
         <SafeAreaView edges={["top"]} style={styles.mapHeader}>
           <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="back-button">
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
+          {directions && (
+            <View style={styles.etaPill} testID="route-eta-pill">
+              <Ionicons name="time" size={13} color={colors.onSurface} />
+              <Text style={styles.etaPillText}>
+                {formatEta(directions.durationSeconds)} · {formatDistance(directions.distanceMeters)}
+              </Text>
+            </View>
+          )}
         </SafeAreaView>
       </View>
 
@@ -199,7 +209,21 @@ const styles = StyleSheet.create({
   mapWrap: { height: "35%" },
   map: { width: "100%", height: "100%" },
   mapScrim: { position: "absolute", top: 0, left: 0, right: 0, height: 100 },
-  mapHeader: { position: "absolute", top: 0, left: 0, right: 0, padding: spacing.md },
+  mapHeader: { position: "absolute", top: 0, left: 0, right: 0, padding: spacing.md, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  etaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    marginTop: 4,
+  },
+  etaPillText: { fontSize: 12, fontWeight: "700", color: colors.onSurface },
   iconBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.4)",

@@ -13,6 +13,7 @@ import { router } from "expo-router";
 
 import { useUser } from "@/src/context/user";
 import { colors, spacing, radius, type, VEHICLE_TYPES } from "@/src/theme";
+import PlaceField from "@/src/components/PlaceField";
 
 const POPULAR_ROUTES = [
   ["Mumbai", "Pune"],
@@ -92,29 +93,21 @@ export default function Home() {
 
         {mode === "find" ? (
           <View style={styles.card}>
-            <View style={styles.fieldRow}>
-              <View style={styles.dotFrom} />
-              <TextInput
-                testID="from-input"
-                placeholder="Leaving from"
-                placeholderTextColor={colors.onSurfaceTertiary}
-                value={from}
-                onChangeText={setFrom}
-                style={styles.field}
-              />
-            </View>
+            <PlaceField
+              testID="from-input"
+              value={from}
+              onChangeText={setFrom}
+              placeholder="Leaving from"
+              dotColor={colors.brandPrimary}
+            />
             <View style={styles.divider} />
-            <View style={styles.fieldRow}>
-              <View style={styles.dotTo} />
-              <TextInput
-                testID="to-input"
-                placeholder="Going to"
-                placeholderTextColor={colors.onSurfaceTertiary}
-                value={to}
-                onChangeText={setTo}
-                style={styles.field}
-              />
-            </View>
+            <PlaceField
+              testID="to-input"
+              value={to}
+              onChangeText={setTo}
+              placeholder="Going to"
+              dotColor={colors.onSurface}
+            />
             <View style={styles.divider} />
             <View style={styles.fieldRow}>
               <Ionicons name="calendar" size={18} color={colors.onSurfaceSecondary} />

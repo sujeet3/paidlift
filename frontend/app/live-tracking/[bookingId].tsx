@@ -1,30 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
-import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
 import { colors, spacing, radius, type } from "@/src/theme";
-
-const MAP = "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=1200&auto=format&fit=crop";
+import RideMap from "@/src/components/RideMap";
+import { fetchDirections, decodePolyline, formatEta, DirectionsResult } from "@/src/maps";
 
 export default function LiveTracking() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const { user } = useUser();
   const [b, setB] = useState<any>(null);
-  const [etaMin, setEtaMin] = useState(28);
+  const [directions, setDirections] = useState<DirectionsResult | null>(null);
+  const [progress, setProgress] = useState(0); // 0..1 along route
 
   useEffect(() => {
     (async () => {
-      try { setB(await api.getBooking(bookingId!)); } catch {}
+      try {
+        const bk = await api.getBooking(bookingId!);
+        setB(bk);
+        if (bk?.ride?.from_location && bk?.ride?.to_location) {
+          const d = await fetchDirections(bk.ride.from_location, bk.ride.to_location, bk.ride.stops || []);
+          setDirections(d);
+        }
+      } catch {}
     })();
-    const t = setInterval(() => setEtaMin((v) => Math.max(0, v - 1)), 5000);
-    return () => clearInterval(t);
   }, [bookingId]);
+
+  // Advance the driver marker along the polyline every 3s
+  useEffect(() => {
+    if (!directions) return;
+    const t = setInterval(() => {
+      setProgress((p) => Math.min(1, p + 0.02));
+    }, 3000);
+    return () => clearInterval(t);
+  }, [directions]);
+
+  const driverPos = useMemo(() => {
+    if (!directions?.overviewPolyline) return undefined;
+    const pts = decodePolyline(directions.overviewPolyline);
+    if (pts.length === 0) return undefined;
+    const idx = Math.min(pts.length - 1, Math.floor(progress * (pts.length - 1)));
+    return pts[idx];
+  }, [directions?.overviewPolyline, progress]);
+
+  const etaSec = directions ? Math.max(0, Math.round(directions.durationSeconds * (1 - progress))) : 0;
 
   const triggerSOS = async () => {
     if (!user) return;
@@ -35,7 +58,7 @@ export default function LiveTracking() {
         style: "destructive",
         onPress: async () => {
           try {
-            await api.sos({ booking_id: bookingId!, user_id: user.id, location: "Live tracking screen" });
+            await api.sos({ booking_id: bookingId!, user_id: user.id, location: driverPos ? `${driverPos.latitude},${driverPos.longitude}` : "unknown" });
             Alert.alert("SOS sent", "Our team has been notified. Stay safe.");
           } catch {}
         },
@@ -45,8 +68,12 @@ export default function LiveTracking() {
 
   return (
     <View style={styles.root}>
-      <Image source={MAP} style={styles.map} contentFit="cover" />
-      <LinearGradient colors={["rgba(0,0,0,0.4)", "transparent"]} style={styles.scrimTop} />
+      <RideMap
+        polyline={directions?.overviewPolyline}
+        driver={driverPos}
+        stops={(b?.ride?.stops || []).map((s: string) => ({ latitude: 0, longitude: 0, label: s }))}
+        showDriver
+      />
 
       <SafeAreaView edges={["top"]} style={styles.top}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}><Ionicons name="chevron-back" size={22} color="#fff" /></Pressable>
@@ -63,8 +90,10 @@ export default function LiveTracking() {
 
       <SafeAreaView edges={["bottom"]} style={styles.sheet}>
         <View style={styles.handle} />
-        <Text style={styles.eta}>{etaMin} min</Text>
-        <Text style={styles.etaSub}>Estimated arrival</Text>
+        <Text style={styles.eta} testID="live-eta">{directions ? formatEta(etaSec) : "—"}</Text>
+        <Text style={styles.etaSub}>
+          Estimated arrival {directions?.mocked ? "· estimate" : ""}
+        </Text>
 
         <View style={styles.driverRow}>
           <View style={styles.avatar}>
@@ -82,8 +111,12 @@ export default function LiveTracking() {
         <View style={styles.nextTurn}>
           <Ionicons name="arrow-forward-circle" size={20} color={colors.brandPrimary} />
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
-            <Text style={styles.turnText}>Continue on NH-48 for 4.2 km</Text>
-            <Text style={styles.turnSub}>Then take the exit toward destination</Text>
+            <Text style={styles.turnText}>
+              {progress < 1 ? "Continue on NH-48" : "Arrived at destination"}
+            </Text>
+            <Text style={styles.turnSub}>
+              {progress < 1 ? `${Math.round((1 - progress) * 100)}% remaining` : "Complete the ride"}
+            </Text>
           </View>
         </View>
       </SafeAreaView>
@@ -93,8 +126,6 @@ export default function LiveTracking() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
-  map: { width: "100%", height: "100%", position: "absolute" },
-  scrimTop: { position: "absolute", top: 0, left: 0, right: 0, height: 140 },
   top: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", padding: spacing.md, alignItems: "center" },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
   trackingBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill },
