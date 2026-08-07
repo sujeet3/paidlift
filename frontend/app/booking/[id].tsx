@@ -14,6 +14,7 @@ export default function BookingDetail() {
   const [b, setB] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState(false);
+  const [payChooserOpen, setPayChooserOpen] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState("");
@@ -58,7 +59,32 @@ export default function BookingDetail() {
       return;
     }
     await update({ paid: true });
-    Alert.alert("Payment successful", `₹${b.total_price} paid to ${b.owner?.name}. (Mocked)`);
+    Alert.alert("Payment successful", `₹${b.total_price} paid to ${b.owner?.name}. (From wallet)`);
+  };
+
+  const payOnline = async (provider: "razorpay" | "phonepe") => {
+    if (!user) return;
+    setPayChooserOpen(false);
+    try {
+      const order = await api.createPaymentOrder({
+        provider,
+        purpose: "ride",
+        user_id: user.id,
+        booking_id: b.id,
+      });
+      router.push({
+        pathname: "/checkout",
+        params: {
+          payment_id: order.payment_id,
+          checkout_url: order.checkout_url,
+          provider: order.provider,
+          simulated: String(order.simulated),
+          return_path: `/booking/${b.id}`,
+        },
+      });
+    } catch (e: any) {
+      Alert.alert("Failed", e.message);
+    }
   };
 
   const submitRating = async () => {
@@ -112,10 +138,16 @@ export default function BookingDetail() {
         )}
 
         {isPassenger && b.status === "accepted" && !b.paid && (
-          <Pressable style={styles.primary} onPress={pay} disabled={action} testID="pay-button">
-            <Ionicons name="card" size={18} color="#fff" />
-            <Text style={styles.primaryText}>Pay ₹{b.total_price}</Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.primary} onPress={() => setPayChooserOpen(true)} disabled={action} testID="pay-online-button">
+              <Ionicons name="card" size={18} color="#fff" />
+              <Text style={styles.primaryText}>Pay ₹{b.total_price} Online</Text>
+            </Pressable>
+            <Pressable style={[styles.linkBtn, { marginTop: spacing.sm }]} onPress={pay} disabled={action} testID="pay-wallet-button">
+              <Ionicons name="wallet" size={18} color={colors.brandPrimary} />
+              <Text style={styles.linkText}>Pay from Wallet (₹{user?.wallet_balance?.toFixed(2) || "0"})</Text>
+            </Pressable>
+          </>
         )}
 
         {b.status === "accepted" && (
@@ -215,4 +247,7 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.xl },
   modalTitle: { ...type.h2 },
   fieldInput: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, fontSize: 15, minHeight: 60 },
+  gwBig: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surface },
+  gwBigTitle: { fontSize: 16, fontWeight: "800", color: colors.onSurface },
+  gwBigSub: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
 });

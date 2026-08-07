@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 
 import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
@@ -15,6 +15,7 @@ export default function Wallet() {
   const [topupOpen, setTopupOpen] = useState(false);
   const [amount, setAmount] = useState("500");
   const [saving, setSaving] = useState(false);
+  const [provider, setProvider] = useState<"razorpay" | "phonepe">("razorpay");
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -34,10 +35,23 @@ export default function Wallet() {
     if (!amt || amt <= 0) return;
     setSaving(true);
     try {
-      await api.topUp(user.id, amt);
+      const order = await api.createPaymentOrder({
+        provider,
+        purpose: "wallet_topup",
+        user_id: user.id,
+        amount: amt,
+      });
       setTopupOpen(false);
-      await refresh();
-      await load();
+      router.push({
+        pathname: "/checkout",
+        params: {
+          payment_id: order.payment_id,
+          checkout_url: order.checkout_url,
+          provider: order.provider,
+          simulated: String(order.simulated),
+          return_path: "/(tabs)/wallet",
+        },
+      });
     } catch (e: any) {
       Alert.alert("Failed", e.message);
     }
@@ -125,6 +139,27 @@ export default function Wallet() {
                   <Text style={styles.presetText}>₹{v}</Text>
                 </Pressable>
               ))}
+            </View>
+            <Text style={styles.gwLabel}>Pay via</Text>
+            <View style={styles.gwRow}>
+              <Pressable
+                testID="gateway-razorpay"
+                onPress={() => setProvider("razorpay")}
+                style={[styles.gwOpt, provider === "razorpay" && styles.gwOptActive]}
+              >
+                <Ionicons name="card" size={18} color={provider === "razorpay" ? colors.onBrandPrimary : colors.onSurfaceSecondary} />
+                <Text style={[styles.gwOptText, provider === "razorpay" && { color: colors.onBrandPrimary }]}>Razorpay</Text>
+                <Text style={[styles.gwOptSub, provider === "razorpay" && { color: colors.onBrandPrimary }]}>UPI / Cards / NB</Text>
+              </Pressable>
+              <Pressable
+                testID="gateway-phonepe"
+                onPress={() => setProvider("phonepe")}
+                style={[styles.gwOpt, provider === "phonepe" && styles.gwOptActive]}
+              >
+                <Ionicons name="phone-portrait" size={18} color={provider === "phonepe" ? colors.onBrandPrimary : colors.onSurfaceSecondary} />
+                <Text style={[styles.gwOptText, provider === "phonepe" && { color: colors.onBrandPrimary }]}>PhonePe</Text>
+                <Text style={[styles.gwOptSub, provider === "phonepe" && { color: colors.onBrandPrimary }]}>UPI-first</Text>
+              </Pressable>
             </View>
             <Pressable testID="topup-confirm-button" style={styles.modalBtn} onPress={doTopUp} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Add ₹{amount}</Text>}
@@ -230,4 +265,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   modalBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  gwLabel: { ...type.label, marginTop: spacing.lg, marginBottom: spacing.sm },
+  gwRow: { flexDirection: "row", gap: spacing.md },
+  gwOpt: { flex: 1, padding: spacing.md, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, alignItems: "center", gap: 4 },
+  gwOptActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
+  gwOptText: { fontWeight: "800", color: colors.onSurface, fontSize: 14, marginTop: 2 },
+  gwOptSub: { fontSize: 11, color: colors.onSurfaceSecondary },
 });

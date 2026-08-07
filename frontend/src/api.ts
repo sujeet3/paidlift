@@ -65,6 +65,25 @@ export const api = {
     request<any>("/ratings", { method: "POST", body: JSON.stringify(data) }),
   sos: (data: any) =>
     request<any>("/sos", { method: "POST", body: JSON.stringify(data) }),
+  createPaymentOrder: (data: {
+    provider: "razorpay" | "phonepe";
+    purpose: "wallet_topup" | "ride";
+    user_id: string;
+    amount?: number;
+    booking_id?: string;
+  }) =>
+    request<{
+      payment_id: string;
+      provider: string;
+      amount_paise: number;
+      checkout_url: string;
+      simulated: boolean;
+    }>("/payments/order", { method: "POST", body: JSON.stringify(data) }),
+  getPaymentStatus: (payment_id: string) =>
+    request<{ payment_id: string; status: string; provider: string; simulated: boolean }>(
+      "/payments/status",
+      { method: "POST", body: JSON.stringify({ payment_id }) },
+    ),
   adminStats: () => request<any>("/admin/stats"),
   adminUsers: () => request<any[]>("/admin/users"),
   adminRides: () => request<any[]>("/admin/rides"),

@@ -20,6 +20,10 @@ db = client[os.environ['DB_NAME']]
 app = FastAPI(title="PAID LIFT API")
 api_router = APIRouter(prefix="/api")
 
+# Payments router (Razorpay + PhonePe + Simulator fallback)
+from payments import build_router as build_payments_router  # noqa: E402
+API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", "http://localhost:8001")
+
 
 # ---------- Utils ----------
 def now_iso() -> str:
@@ -542,6 +546,7 @@ async def seed_demo():
 
 # Include router
 app.include_router(api_router)
+app.include_router(build_payments_router(db, API_PUBLIC_URL))
 
 app.add_middleware(
     CORSMiddleware,
