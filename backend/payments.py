@@ -136,11 +136,15 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
                 {"id": booking["id"]},
                 {"$set": {"paid": True, "status": "accepted"}},
             )
-            # Decrement seats if not already
-            await db.rides.update_one(
-                {"id": booking["ride_id"]},
-                {"$inc": {"seats_available": -booking["seats"]}},
-            )
+            # Decrement seats only once per booking (guard against re-decrement).
+            if not booking.get("seats_decremented"):
+                await db.rides.update_one(
+                    {"id": booking["ride_id"], "seats_available": {"$gte": booking["seats"]}},
+                    {"$inc": {"seats_available": -booking["seats"]}},
+                )
+                await db.bookings.update_one(
+                    {"id": booking["id"]}, {"$set": {"seats_decremented": True}}
+                )
             await db.users.update_one(
                 {"id": booking["owner_id"]}, {"$inc": {"wallet_balance": owner_amt}}
             )

@@ -370,13 +370,15 @@ async def update_booking(booking_id: str, payload: BookingUpdate):
         raise HTTPException(404, "Not found")
     updates = {k: v for k, v in payload.dict().items() if v is not None}
     if updates.get("status") == "accepted":
-        # decrement seats
-        ride = await db.rides.find_one({"id": b["ride_id"]}, PROJECT)
-        if ride and ride["seats_available"] >= b["seats"]:
-            await db.rides.update_one(
-                {"id": b["ride_id"]},
-                {"$inc": {"seats_available": -b["seats"]}},
-            )
+        # decrement seats only if not already decremented and enough available
+        if not b.get("seats_decremented") and not b.get("paid"):
+            ride = await db.rides.find_one({"id": b["ride_id"]}, PROJECT)
+            if ride and ride["seats_available"] >= b["seats"]:
+                await db.rides.update_one(
+                    {"id": b["ride_id"], "seats_available": {"$gte": b["seats"]}},
+                    {"$inc": {"seats_available": -b["seats"]}},
+                )
+                updates["seats_decremented"] = True
     if updates.get("paid"):
         # wallet: debit passenger, credit owner (minus 10% commission)
         commission = round(b["total_price"] * 0.10, 2)
