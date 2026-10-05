@@ -26,9 +26,6 @@ next-env.d.ts
 *.tsbuildinfo
 
 # Production builds
-/build
-dist/
-dist
 
 # Environment files (comprehensive coverage)
 
@@ -61,8 +58,7 @@ chainlit.md
 # Deployment
 .vercel
 
-# Data and databases
-agenthub/agents/youtube/db
+
 
 # Archive files and large assets
 **/*.zip
@@ -76,7 +72,7 @@ agenthub/agents/youtube/db
 # Build caches
 .cache/
 
-memory/test_credentials.md
+
 
 # Mobile development
 android-sdk/
