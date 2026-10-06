@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 
 import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
-import { colors, spacing, radius, type } from "@/src/theme";
+import { colors, spacing, radius } from "@/src/theme";
 import RideMap from "@/src/components/RideMap";
 import { fetchDirections, decodePolyline, formatEta, DirectionsResult } from "@/src/maps";
 
@@ -15,7 +15,9 @@ export default function LiveTracking() {
   const { user } = useUser();
   const [b, setB] = useState<any>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
-  const [progress, setProgress] = useState(0); // 0..1 along route
+  const [progress, setProgress] = useState(0);
+  const [realLoc, setRealLoc] = useState<{ latitude: number; longitude: number; age_seconds: number } | null>(null);
+  const simRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -30,16 +32,36 @@ export default function LiveTracking() {
     })();
   }, [bookingId]);
 
-  // Advance the driver marker along the polyline every 3s
+  // Poll real driver GPS; fall back to simulated progress when stale
   useEffect(() => {
-    if (!directions) return;
-    const t = setInterval(() => {
-      setProgress((p) => Math.min(1, p + 0.02));
-    }, 3000);
+    const t = setInterval(async () => {
+      try {
+        const loc = await api.getLocation(bookingId!);
+        if (loc?.available) {
+          setRealLoc(loc);
+        } else {
+          setRealLoc(null);
+        }
+      } catch {
+        setRealLoc(null);
+      }
+    }, 5000);
     return () => clearInterval(t);
-  }, [directions]);
+  }, [bookingId]);
 
-  const driverPos = useMemo(() => {
+  // Simulated progress only when no real GPS
+  useEffect(() => {
+    if (realLoc || !directions) return;
+    if (simRef.current) return;
+    simRef.current = setInterval(() => setProgress((p) => Math.min(1, p + 0.02)), 3000);
+    return () => { if (simRef.current) { clearInterval(simRef.current); simRef.current = null; } };
+  }, [realLoc, directions]);
+
+  useEffect(() => {
+    if (realLoc && simRef.current) { clearInterval(simRef.current); simRef.current = null; }
+  }, [realLoc]);
+
+  const simPos = useMemo(() => {
     if (!directions?.overviewPolyline) return undefined;
     const pts = decodePolyline(directions.overviewPolyline);
     if (pts.length === 0) return undefined;
@@ -47,7 +69,22 @@ export default function LiveTracking() {
     return pts[idx];
   }, [directions?.overviewPolyline, progress]);
 
-  const etaSec = directions ? Math.max(0, Math.round(directions.durationSeconds * (1 - progress))) : 0;
+  const driverPos = realLoc ? { latitude: realLoc.latitude, longitude: realLoc.longitude } : simPos;
+
+  // ETA: from real position if we can, else progress-based
+  const etaSec = useMemo(() => {
+    if (!directions) return 0;
+    if (realLoc && directions.end) {
+      // rough straight-line ETA from real position
+      const R = 6371000;
+      const dLat = (directions.end.lat - realLoc.latitude) * Math.PI / 180;
+      const dLng = (directions.end.lng - realLoc.longitude) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(realLoc.latitude * Math.PI / 180) * Math.cos(directions.end.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const dist = 2 * R * Math.asin(Math.sqrt(a));
+      return Math.round(dist / (45_000 / 3600));
+    }
+    return Math.max(0, Math.round(directions.durationSeconds * (1 - progress)));
+  }, [directions, realLoc, progress]);
 
   const triggerSOS = async () => {
     if (!user) return;
@@ -68,18 +105,13 @@ export default function LiveTracking() {
 
   return (
     <View style={styles.root}>
-      <RideMap
-        polyline={directions?.overviewPolyline}
-        driver={driverPos}
-        stops={(b?.ride?.stops || []).map((s: string) => ({ latitude: 0, longitude: 0, label: s }))}
-        showDriver
-      />
+      <RideMap polyline={directions?.overviewPolyline} driver={driverPos} showDriver />
 
       <SafeAreaView edges={["top"]} style={styles.top}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn}><Ionicons name="chevron-back" size={22} color="#fff" /></Pressable>
-        <View style={styles.trackingBadge}>
-          <View style={styles.livePulse} />
-          <Text style={styles.badgeText}>LIVE TRACKING</Text>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn} testID="back-button"><Ionicons name="chevron-back" size={22} color="#fff" /></Pressable>
+        <View style={styles.trackingBadge} testID="gps-mode-badge">
+          <View style={[styles.livePulse, !realLoc && { backgroundColor: colors.warning }]} />
+          <Text style={styles.badgeText}>{realLoc ? "LIVE GPS" : "ESTIMATED"}</Text>
         </View>
       </SafeAreaView>
 
@@ -91,9 +123,7 @@ export default function LiveTracking() {
       <SafeAreaView edges={["bottom"]} style={styles.sheet}>
         <View style={styles.handle} />
         <Text style={styles.eta} testID="live-eta">{directions ? formatEta(etaSec) : "—"}</Text>
-        <Text style={styles.etaSub}>
-          Estimated arrival {directions?.mocked ? "· estimate" : ""}
-        </Text>
+        <Text style={styles.etaSub}>Estimated arrival{realLoc ? "" : " · driver GPS pending"}</Text>
 
         <View style={styles.driverRow}>
           <View style={styles.avatar}>
@@ -103,7 +133,7 @@ export default function LiveTracking() {
             <Text style={styles.name}>{b?.owner?.name || "Driver"}</Text>
             <Text style={styles.small}>{b?.ride?.from_location} → {b?.ride?.to_location}</Text>
           </View>
-          <Pressable style={styles.chatBtn} onPress={() => router.push({ pathname: "/chat/[bookingId]", params: { bookingId: bookingId! } })}>
+          <Pressable style={styles.chatBtn} onPress={() => router.push({ pathname: "/chat/[bookingId]", params: { bookingId: bookingId! } })} testID="chat-button">
             <Ionicons name="chatbubbles" size={18} color={colors.brandPrimary} />
           </Pressable>
         </View>
@@ -111,11 +141,9 @@ export default function LiveTracking() {
         <View style={styles.nextTurn}>
           <Ionicons name="arrow-forward-circle" size={20} color={colors.brandPrimary} />
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
-            <Text style={styles.turnText}>
-              {progress < 1 ? "Continue on NH-48" : "Arrived at destination"}
-            </Text>
+            <Text style={styles.turnText}>{etaSec < 120 ? "Arriving now" : "En route"}</Text>
             <Text style={styles.turnSub}>
-              {progress < 1 ? `${Math.round((1 - progress) * 100)}% remaining` : "Complete the ride"}
+              {realLoc ? "Tracking driver's live position" : "Driver hasn't started GPS sharing yet"}
             </Text>
           </View>
         </View>

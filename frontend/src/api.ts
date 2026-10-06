@@ -88,4 +88,41 @@ export const api = {
   adminUsers: () => request<any[]>("/admin/users"),
   adminRides: () => request<any[]>("/admin/rides"),
   adminSos: () => request<any[]>("/admin/sos"),
+  // v1.3 — growth & ops
+  adminVehicles: (status?: string) =>
+    request<any[]>(`/admin/vehicles${status ? `?status=${status}` : ""}`),
+  adminRevenue: () => request<any>("/admin/revenue"),
+  approveVehicle: (id: string, approve: boolean) =>
+    request<any>(`/admin/vehicles/${id}/approve?approve=${approve}`, { method: "POST" }),
+  suspendUser: (id: string, suspended: boolean) =>
+    request<any>(`/admin/users/${id}/suspend?suspended=${suspended}`, { method: "POST" }),
+  delistRide: (id: string) =>
+    request<any>(`/admin/rides/${id}/delist`, { method: "POST" }),
+  resolveSos: (id: string) =>
+    request<any>(`/admin/sos/${id}/resolve`, { method: "POST" }),
+  listWithdrawals: (params?: string) =>
+    request<any[]>(`/withdrawals${params || ""}`),
+  decideWithdrawal: (id: string, approve: boolean) =>
+    request<any>(`/admin/withdrawals/${id}/decide?approve=${approve}`, { method: "POST" }),
+  withdraw: (user_id: string, amount: number, upi_id: string) =>
+    request<any>(`/wallet/${user_id}/withdraw`, {
+      method: "POST",
+      body: JSON.stringify({ amount, upi_id }),
+    }),
+  applyReferral: (user_id: string, code: string) =>
+    request<any>("/referrals/apply", {
+      method: "POST",
+      body: JSON.stringify({ user_id, code }),
+    }),
+  cancelRide: (ride_id: string) =>
+    request<any>(`/rides/${ride_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "cancelled" }),
+    }),
+  postLocation: (data: { booking_id: string; user_id: string; latitude: number; longitude: number; heading?: number }) =>
+    request<any>("/location", { method: "POST", body: JSON.stringify(data) }),
+  getLocation: (booking_id: string) =>
+    request<any>(`/location/${booking_id}`),
+  registerPush: (data: { user_id: string; platform: string; device_token: string }) =>
+    request<any>("/register-push", { method: "POST", body: JSON.stringify(data) }),
 };

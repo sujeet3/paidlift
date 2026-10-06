@@ -13,6 +13,9 @@ export default function Wallet() {
   const [wallet, setWallet] = useState<{ balance: number; transactions: any[] }>({ balance: 0, transactions: [] });
   const [loading, setLoading] = useState(false);
   const [topupOpen, setTopupOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [upiId, setUpiId] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [amount, setAmount] = useState("500");
   const [saving, setSaving] = useState(false);
   const [provider, setProvider] = useState<"razorpay" | "phonepe">("razorpay");
@@ -80,7 +83,7 @@ export default function Wallet() {
             <Pressable
               testID="wallet-withdraw-button"
               style={[styles.actionBtn, styles.actionGhost]}
-              onPress={() => Alert.alert("Withdraw", "Withdrawals will be enabled after KYC review.")}
+              onPress={() => setWithdrawOpen(true)}
             >
               <Ionicons name="arrow-down-circle" size={18} color={colors.brandPrimary} />
               <Text style={[styles.actionText, { color: colors.brandPrimary }]}>Withdraw</Text>
@@ -165,6 +168,61 @@ export default function Wallet() {
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Add ₹{amount}</Text>}
             </Pressable>
             <Pressable onPress={() => setTopupOpen(false)} style={{ padding: spacing.md, alignItems: "center" }}>
+              <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent visible={withdrawOpen} animationType="slide" onRequestClose={() => setWithdrawOpen(false)}>
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Withdraw to UPI</Text>
+            <Text style={styles.modalSub}>Available: ₹{wallet.balance.toFixed(2)}. Processed within 24h after admin review.</Text>
+            <TextInput
+              testID="withdraw-amount-input"
+              style={styles.modalInput}
+              keyboardType="number-pad"
+              value={withdrawAmount}
+              onChangeText={setWithdrawAmount}
+              placeholder="Amount ₹"
+              placeholderTextColor={colors.onSurfaceTertiary}
+            />
+            <TextInput
+              testID="withdraw-upi-input"
+              style={[styles.modalInput, { fontSize: 15, fontWeight: "600" }]}
+              autoCapitalize="none"
+              value={upiId}
+              onChangeText={setUpiId}
+              placeholder="yourname@upi"
+              placeholderTextColor={colors.onSurfaceTertiary}
+            />
+            <Pressable
+              testID="withdraw-confirm-button"
+              style={styles.modalBtn}
+              disabled={saving}
+              onPress={async () => {
+                if (!user) return;
+                const amt = parseFloat(withdrawAmount);
+                if (!amt || amt <= 0) return Alert.alert("Invalid amount");
+                if (amt > wallet.balance) return Alert.alert("Insufficient balance");
+                if (!upiId.includes("@")) return Alert.alert("Enter a valid UPI ID");
+                setSaving(true);
+                try {
+                  await api.withdraw(user.id, amt, upiId);
+                  setWithdrawOpen(false);
+                  setWithdrawAmount("");
+                  await refresh();
+                  await load();
+                  Alert.alert("Request submitted", "We'll process your withdrawal within 24 hours.");
+                } catch (e: any) {
+                  Alert.alert("Failed", e.message);
+                }
+                setSaving(false);
+              }}
+            >
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Request Withdrawal</Text>}
+            </Pressable>
+            <Pressable onPress={() => setWithdrawOpen(false)} style={{ padding: spacing.md, alignItems: "center" }}>
               <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
           </View>

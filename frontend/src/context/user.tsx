@@ -1,6 +1,22 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { Platform } from "react-native";
 import { storage } from "@/src/utils/storage";
 import { api } from "@/src/api";
+
+async function registerForPush(userId: string) {
+  if (Platform.OS === "web") return;
+  try {
+    const Notifications = require("expo-notifications");
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return;
+    const tokenResp = await Notifications.getDevicePushTokenAsync();
+    await api.registerPush({
+      user_id: userId,
+      platform: Platform.OS,
+      device_token: tokenResp.data,
+    });
+  } catch {}
+}
 
 export type User = {
   id: string;
@@ -45,8 +61,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const setUser = useCallback(async (u: User | null) => {
     setUserState(u);
-    if (u) await storage.setItem(USER_KEY, JSON.stringify(u));
-    else await storage.removeItem(USER_KEY);
+    if (u) {
+      await storage.setItem(USER_KEY, JSON.stringify(u));
+      registerForPush(u.id); // re-register on every login (tokens rotate)
+    } else {
+      await storage.removeItem(USER_KEY);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -56,6 +76,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       await setUser(fresh);
     } catch {}
   }, [user, setUser]);
+
+  useEffect(() => {
+    if (user) registerForPush(user.id);
+  }, [user?.id]);
 
   const signOut = useCallback(async () => {
     await storage.removeItem(USER_KEY);

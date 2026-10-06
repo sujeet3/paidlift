@@ -11,6 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.paidlift.xat0q1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of your vehicle documents for verification",
+        "NSPhotoLibraryUsageDescription": "Upload vehicle documents from your gallery",
+        "NSLocationWhenInUseUsageDescription": "Share your live location with passengers during rides"
+      },
       "config": {
         "googleMapsApiKey": "YOUR_FRONTEND_MAP_KEY"
       }
@@ -22,6 +27,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.paidlift.xat0q1",
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS"],
       "config": {
         "googleMaps": {
           "apiKey": "YOUR_FRONTEND_MAP_KEY"
@@ -35,6 +42,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
