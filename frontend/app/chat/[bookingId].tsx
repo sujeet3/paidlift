@@ -8,18 +8,13 @@ import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
 import { colors, spacing, radius, type } from "@/src/theme";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
-const WS_BASE = BASE.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-
 export default function Chat() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const { user } = useUser();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [booking, setBooking] = useState<any>(null);
-  const [live, setLive] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -30,42 +25,11 @@ export default function Chat() {
     } catch {}
   }, [bookingId]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // WebSocket with polling fallback
   useEffect(() => {
-    if (!bookingId) return;
-    let poll: ReturnType<typeof setInterval> | null = null;
-    let closed = false;
-
-    const startPolling = () => {
-      if (!poll) poll = setInterval(load, 5000);
-    };
-
-    try {
-      const ws = new WebSocket(`${WS_BASE}/api/chat/ws/${bookingId}`);
-      wsRef.current = ws;
-      ws.onopen = () => { setLive(true); if (poll) { clearInterval(poll); poll = null; } };
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
-        } catch {}
-      };
-      ws.onerror = () => { setLive(false); startPolling(); };
-      ws.onclose = () => { setLive(false); if (!closed) startPolling(); };
-      // If socket never opens in 3s, start polling anyway
-      setTimeout(() => { if (ws.readyState !== WebSocket.OPEN) startPolling(); }, 3000);
-    } catch {
-      startPolling();
-    }
-
-    return () => {
-      closed = true;
-      if (poll) clearInterval(poll);
-      try { wsRef.current?.close(); } catch {}
-    };
-  }, [bookingId, load]);
+    load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [load]);
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -77,6 +41,7 @@ export default function Chat() {
     setText("");
     try {
       await api.sendChat({ booking_id: bookingId, sender_id: user.id, text: t });
+      await load();
     } catch {}
   };
 
@@ -86,12 +51,11 @@ export default function Chat() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} testID="back-button"><Ionicons name="chevron-back" size={22} color={colors.onSurface} /></Pressable>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}><Ionicons name="chevron-back" size={22} color={colors.onSurface} /></Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{other?.name || "Chat"}</Text>
             <Text style={styles.sub}>{booking?.ride?.from_location} → {booking?.ride?.to_location}</Text>
           </View>
-          <View style={[styles.liveDot, { backgroundColor: live ? colors.success : colors.onSurfaceTertiary }]} testID="chat-live-indicator" />
         </View>
 
         <ScrollView ref={scrollRef} contentContainerStyle={styles.list}>
@@ -135,7 +99,6 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   title: { fontSize: 17, fontWeight: "800", color: colors.onSurface },
   sub: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
-  liveDot: { width: 10, height: 10, borderRadius: 5 },
   list: { padding: spacing.lg, paddingBottom: spacing.lg, gap: 6 },
   empty: { alignItems: "center", padding: spacing.xxxl },
   emptyText: { ...type.bodySm, marginTop: spacing.sm },

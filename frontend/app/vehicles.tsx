@@ -1,33 +1,21 @@
-import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, Linking, Platform } from "react-native";
+import { useEffect, useState, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
 
 import { api } from "@/src/api";
-import { uploadFile, fileUrl } from "@/src/upload";
 import { useUser } from "@/src/context/user";
 import { colors, spacing, radius, type, VEHICLE_TYPES } from "@/src/theme";
-
-const FUEL_TYPES = [
-  { key: "petrol", label: "Petrol" },
-  { key: "diesel", label: "Diesel" },
-  { key: "cng", label: "CNG" },
-  { key: "ev", label: "EV ⚡" },
-];
 
 export default function Vehicles() {
   const { user } = useUser();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
 
   // form
   const [vehicleType, setVehicleType] = useState("sedan");
-  const [fuelType, setFuelType] = useState("petrol");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [plate, setPlate] = useState("");
@@ -57,7 +45,6 @@ export default function Vehicles() {
       await api.createVehicle({
         owner_id: user.id,
         vehicle_type: vehicleType,
-        fuel_type: fuelType,
         make, model, plate,
         seats_total: parseInt(seatsTotal, 10) || 4,
         rc_number: rc,
@@ -67,61 +54,16 @@ export default function Vehicles() {
       setOpen(false);
       setMake(""); setModel(""); setPlate(""); setRc(""); setIns(""); setDl("");
       await load();
-      Alert.alert("Submitted for review", "Upload RC, DL & insurance photos to get approved faster.");
     } catch (e: any) {
       Alert.alert("Failed", e.message);
     }
     setSaving(false);
   };
 
-  const pickAndUpload = async (vehicleId: string) => {
-    if (!user) return;
-    // Permission flow: check → request → handle denied
-    const perm = await ImagePicker.getMediaLibraryPermissionsAsync();
-    let granted = perm.granted;
-    if (!granted && perm.canAskAgain) {
-      const req = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      granted = req.granted;
-    }
-    if (!granted) {
-      Alert.alert(
-        "Photo access needed",
-        "Allow gallery access to upload your RC, DL and insurance photos for verification.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-        ],
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.6,
-      allowsEditing: true,
-    });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    setUploadingFor(vehicleId);
-    try {
-      await uploadFile({
-        uri: asset.uri,
-        user_id: user.id,
-        kind: "vehicle_doc",
-        ref_id: vehicleId,
-        fileName: asset.fileName || "doc.jpg",
-        mimeType: asset.mimeType || "image/jpeg",
-      });
-      await load();
-    } catch (e: any) {
-      Alert.alert("Upload failed", "Please try again on a stable connection.");
-    }
-    setUploadingFor(null);
-  };
-
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} testID="back-button"><Ionicons name="chevron-back" size={22} color={colors.onSurface} /></Pressable>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}><Ionicons name="chevron-back" size={22} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>My Vehicles</Text>
       </View>
 
@@ -136,46 +78,13 @@ export default function Vehicles() {
         )}
         {vehicles.map((v) => (
           <View key={v.id} style={styles.card} testID={`vehicle-${v.id}`}>
-            <View style={styles.cardTop}>
-              <View style={styles.vIcon}>
-                <Ionicons name={VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.icon || "car"} size={22} color={colors.brandPrimary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.vTitle}>{v.make} {v.model}</Text>
-                  {v.fuel_type === "ev" && (
-                    <View style={styles.evPill}><Ionicons name="leaf" size={10} color={colors.success} /><Text style={styles.evText}>EV</Text></View>
-                  )}
-                </View>
-                <Text style={styles.vSub}>{v.plate} · {v.seats_total} seats · {VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.label}</Text>
-              </View>
-              {v.approved ? (
-                <View style={styles.approved}><Ionicons name="checkmark-circle" size={12} color={colors.success} /><Text style={styles.approvedText}>Approved</Text></View>
-              ) : (
-                <View style={[styles.approved, { backgroundColor: "#FFF3E0" }]} testID={`vehicle-pending-${v.id}`}><Ionicons name="time" size={12} color={colors.warning} /><Text style={[styles.approvedText, { color: colors.warning }]}>Pending</Text></View>
-              )}
+            <View style={styles.vIcon}>
+              <Ionicons name={VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.icon || "car"} size={22} color={colors.brandPrimary} />
             </View>
-
-            {/* Doc photos */}
-            <View style={styles.docRow}>
-              {Object.entries(v.doc_photos || {}).slice(0, 3).map(([k, path]: any) => (
-                <Image key={k} source={fileUrl(path)} style={styles.docThumb} contentFit="cover" />
-              ))}
-              <Pressable
-                testID={`upload-doc-${v.id}`}
-                style={styles.uploadBtn}
-                onPress={() => pickAndUpload(v.id)}
-                disabled={uploadingFor === v.id}
-              >
-                {uploadingFor === v.id ? (
-                  <ActivityIndicator size="small" color={colors.brandPrimary} />
-                ) : (
-                  <>
-                    <Ionicons name="cloud-upload-outline" size={16} color={colors.brandPrimary} />
-                    <Text style={styles.uploadText}>{Object.keys(v.doc_photos || {}).length ? "Add more" : "Upload RC / DL / Insurance"}</Text>
-                  </>
-                )}
-              </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vTitle}>{v.make} {v.model}</Text>
+              <Text style={styles.vSub}>{v.plate} · {v.seats_total} seats · {VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.label}</Text>
+              {v.approved && <View style={styles.approved}><Ionicons name="checkmark-circle" size={12} color={colors.success} /><Text style={styles.approvedText}>Approved</Text></View>}
             </View>
           </View>
         ))}
@@ -191,7 +100,7 @@ export default function Vehicles() {
       <Modal transparent visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
-            <ScrollView contentContainerStyle={{ padding: spacing.xl }} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={{ padding: spacing.xl }}>
               <Text style={styles.modalTitle}>Add a Vehicle</Text>
               <Text style={styles.small}>Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
@@ -210,22 +119,6 @@ export default function Vehicles() {
                   );
                 })}
               </ScrollView>
-              <Text style={styles.small}>Fuel</Text>
-              <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: 4, flexWrap: "wrap" }}>
-                {FUEL_TYPES.map((f) => {
-                  const active = f.key === fuelType;
-                  return (
-                    <Pressable
-                      key={f.key}
-                      testID={`fuel-${f.key}`}
-                      onPress={() => setFuelType(f.key)}
-                      style={[styles.typeChip, active && { backgroundColor: f.key === "ev" ? colors.success : colors.brandPrimary, borderColor: active ? "transparent" : colors.border }]}
-                    >
-                      <Text style={[styles.typeChipText, active && { color: "#fff" }]}>{f.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
               <Field label="Make" value={make} onChange={setMake} testID="v-make" />
               <Field label="Model" value={model} onChange={setModel} testID="v-model" />
               <Field label="Plate No." value={plate} onChange={setPlate} testID="v-plate" />
@@ -271,19 +164,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", padding: spacing.xxxl },
   emptyText: { ...type.h3, marginTop: spacing.md },
   emptySub: { ...type.bodySm, marginTop: 4 },
-  card: { padding: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  cardTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  card: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   vIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
   vTitle: { fontSize: 15, fontWeight: "700", color: colors.onSurface },
   vSub: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
-  approved: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E8F5E9", paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
+  approved: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, alignSelf: "flex-start", backgroundColor: "#E8F5E9", paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   approvedText: { fontSize: 10, color: colors.success, fontWeight: "800" },
-  evPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E8F5E9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
-  evText: { fontSize: 10, color: colors.success, fontWeight: "800" },
-  docRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
-  docThumb: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.surfaceSecondary },
-  uploadBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: spacing.md, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.brandPrimary, borderRadius: radius.md },
-  uploadText: { fontSize: 12, color: colors.brandPrimary, fontWeight: "700" },
   ctaBar: { padding: spacing.xl, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   cta: { flexDirection: "row", gap: 6, backgroundColor: colors.brandPrimary, borderRadius: radius.md, paddingVertical: 15, alignItems: "center", justifyContent: "center" },
   ctaText: { color: "#fff", fontWeight: "800", fontSize: 15 },

@@ -8,7 +8,7 @@ import { api } from "@/src/api";
 import { colors, spacing, radius, type, VEHICLE_TYPES } from "@/src/theme";
 
 export default function SearchResults() {
-  const params = useLocalSearchParams<{ from?: string; to?: string; date?: string; vehicle_type?: string; women_only?: string; fuel_type?: string }>();
+  const params = useLocalSearchParams<{ from?: string; to?: string; date?: string; vehicle_type?: string }>();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,14 +21,12 @@ export default function SearchResults() {
         if (params.to) q.to_location = params.to;
         if (params.date) q.date = params.date;
         if (params.vehicle_type) q.vehicle_type = params.vehicle_type;
-        if (params.women_only) q.women_only = params.women_only;
-        if (params.fuel_type) q.fuel_type = params.fuel_type;
         const data = await api.searchRides(q);
         setRides(data);
       } catch {}
       setLoading(false);
     })();
-  }, [params.from, params.to, params.date, params.vehicle_type, params.women_only, params.fuel_type]);
+  }, [params.from, params.to, params.date, params.vehicle_type]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -41,10 +39,7 @@ export default function SearchResults() {
           <Text style={styles.route}>
             {params.from || "Any"} → {params.to || "Any"}
           </Text>
-          <Text style={styles.meta}>
-            {params.date || "Any date"} · {rides.length} rides
-            {params.women_only ? " · Women-only" : ""}{params.fuel_type === "ev" ? " · EV" : ""}
-          </Text>
+          <Text style={styles.meta}>{params.date || "Any date"} · {rides.length} rides</Text>
         </View>
       </View>
 
@@ -55,7 +50,7 @@ export default function SearchResults() {
           <View style={styles.empty} testID="empty-results">
             <Ionicons name="road-outline" size={48} color={colors.onSurfaceTertiary} />
             <Text style={styles.emptyText}>No rides found</Text>
-            <Text style={styles.emptySub}>Try changing your date or filters. Rides are matched along the whole corridor — a Mumbai→Pune ride also serves Lonavala pickups.</Text>
+            <Text style={styles.emptySub}>Try changing your date or vehicle filters.</Text>
           </View>
         )}
 
@@ -66,28 +61,6 @@ export default function SearchResults() {
             style={styles.card}
             onPress={() => router.push({ pathname: "/ride/[id]", params: { id: r.id } })}
           >
-            {(r.driver_plus || r.women_only || r.vehicle?.fuel_type === "ev") && (
-              <View style={styles.tagRow}>
-                {r.driver_plus && (
-                  <View style={[styles.tag, { backgroundColor: colors.brandTertiary }]} testID={`tag-plus-${r.id}`}>
-                    <Ionicons name="star" size={10} color={colors.brandPrimary} />
-                    <Text style={[styles.tagText, { color: colors.brandPrimary }]}>PLUS DRIVER</Text>
-                  </View>
-                )}
-                {r.women_only && (
-                  <View style={[styles.tag, { backgroundColor: "#FCE4EC" }]} testID={`tag-women-${r.id}`}>
-                    <Ionicons name="female" size={10} color="#AD1457" />
-                    <Text style={[styles.tagText, { color: "#AD1457" }]}>WOMEN-ONLY</Text>
-                  </View>
-                )}
-                {r.vehicle?.fuel_type === "ev" && (
-                  <View style={[styles.tag, { backgroundColor: "#E8F5E9" }]} testID={`tag-ev-${r.id}`}>
-                    <Ionicons name="leaf" size={10} color={colors.success} />
-                    <Text style={[styles.tagText, { color: colors.success }]}>EV</Text>
-                  </View>
-                )}
-              </View>
-            )}
             <View style={styles.cardTop}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{(r.owner?.name || "U").slice(0, 1)}</Text>
@@ -98,9 +71,6 @@ export default function SearchResults() {
                   {r.owner?.aadhaar_verified && (
                     <Ionicons name="shield-checkmark" size={14} color={colors.success} />
                   )}
-                  {(r.owner_badges || []).filter((b: any) => b.key !== "verified").slice(0, 2).map((b: any) => (
-                    <Ionicons key={b.key} name={b.icon} size={13} color={colors.warning} />
-                  ))}
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
@@ -169,9 +139,9 @@ const styles = StyleSheet.create({
   route: { fontSize: 17, fontWeight: "800", color: colors.onSurface },
   meta: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
   list: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
-  empty: { alignItems: "center", marginTop: spacing.xxxl, paddingHorizontal: spacing.xl },
+  empty: { alignItems: "center", marginTop: spacing.xxxl },
   emptyText: { ...type.h3, marginTop: spacing.md },
-  emptySub: { ...type.bodySm, marginTop: 4, textAlign: "center" },
+  emptySub: { ...type.bodySm, marginTop: 4 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -179,9 +149,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  tagRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
-  tag: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill },
-  tagText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
   cardTop: { flexDirection: "row", alignItems: "center" },
   avatar: {
     width: 42, height: 42, borderRadius: 21,

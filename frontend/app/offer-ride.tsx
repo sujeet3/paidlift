@@ -25,7 +25,6 @@ export default function OfferRide() {
   const [seats, setSeats] = useState("2");
   const [price, setPrice] = useState("300");
   const [notes, setNotes] = useState("");
-  const [womenOnly, setWomenOnly] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,19 +41,15 @@ export default function OfferRide() {
   const publish = async () => {
     if (!user) return;
     if (!vehicleId) {
-      Alert.alert("Add a vehicle first", "You need at least one approved vehicle to publish a ride.");
+      Alert.alert("Add a vehicle first", "You need at least one vehicle to publish a ride.");
       router.push("/vehicles");
-      return;
-    }
-    const vehicle = vehicles.find((v) => v.id === vehicleId);
-    if (!vehicle?.approved) {
-      Alert.alert("Pending approval", "This vehicle is awaiting admin review. Upload RC/DL/insurance photos in My Vehicles for faster approval.");
       return;
     }
     if (!from.trim() || !to.trim() || !date.trim()) {
       Alert.alert("Missing info", "Please fill from, to and date.");
       return;
     }
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
     setSaving(true);
     try {
       const depart_at = `${date}T${time}:00Z`;
@@ -69,7 +64,6 @@ export default function OfferRide() {
         price_per_seat: parseFloat(price) || 0,
         vehicle_type: vehicle.vehicle_type,
         notes,
-        women_only: womenOnly,
       });
       Alert.alert("Published!", "Your ride is now live for passengers to book.", [
         { text: "OK", onPress: () => router.replace("/(tabs)/rides") },
@@ -104,24 +98,19 @@ export default function OfferRide() {
             <View style={{ gap: spacing.sm }}>
               {vehicles.map((v) => {
                 const active = v.id === vehicleId;
-                const selectable = v.approved;
                 return (
                   <Pressable
                     key={v.id}
                     testID={`select-vehicle-${v.id}`}
-                    style={[styles.vehicleCard, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary }, !selectable && { opacity: 0.55 }]}
-                    onPress={() => selectable && setVehicleId(v.id)}
+                    style={[styles.vehicleCard, active && { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary }]}
+                    onPress={() => setVehicleId(v.id)}
                   >
                     <View style={styles.vehicleIcon}>
                       <Ionicons name={VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.icon || "car"} size={20} color={colors.brandPrimary} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.vehicleTitle}>{v.make} {v.model} · {v.plate}</Text>
-                      <Text style={styles.small}>
-                        {VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.label} · {v.seats_total} seats
-                        {v.fuel_type === "ev" ? " · EV ⚡" : ""}
-                        {!selectable ? " · ⏳ pending approval" : ""}
-                      </Text>
+                      <Text style={styles.small}>{VEHICLE_TYPES.find((x) => x.key === v.vehicle_type)?.label} · {v.seats_total} seats</Text>
                     </View>
                     <Ionicons name={active ? "radio-button-on" : "radio-button-off"} size={20} color={active ? colors.brandPrimary : colors.onSurfaceTertiary} />
                   </Pressable>
@@ -162,19 +151,6 @@ export default function OfferRide() {
           <View style={styles.card}>
             <TextInput testID="offer-notes" style={[styles.input, { minHeight: 60 }]} multiline placeholder="e.g. AC, non-smoking, pet-friendly" placeholderTextColor={colors.onSurfaceTertiary} value={notes} onChangeText={setNotes} />
           </View>
-
-          <Pressable
-            testID="women-only-toggle"
-            style={[styles.card, { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.lg }, womenOnly && { borderColor: "#AD1457", backgroundColor: "#FCE4EC" }]}
-            onPress={() => setWomenOnly(!womenOnly)}
-          >
-            <Ionicons name="female" size={20} color={womenOnly ? "#AD1457" : colors.onSurfaceSecondary} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: womenOnly ? "#AD1457" : colors.onSurface }}>Women-only ride</Text>
-              <Text style={styles.small}>Only verified female passengers can book</Text>
-            </View>
-            <Ionicons name={womenOnly ? "checkbox" : "square-outline"} size={24} color={womenOnly ? "#AD1457" : colors.onSurfaceTertiary} />
-          </Pressable>
         </ScrollView>
 
         <SafeAreaView edges={["bottom"]} style={styles.ctaBar}>

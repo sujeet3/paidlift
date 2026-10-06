@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, TextInput, Modal, Linking, Platform } from "react-native";
+import { useEffect, useState, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, TextInput, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
-import * as Location from "expo-location";
 
 import { api } from "@/src/api";
 import { useUser } from "@/src/context/user";
@@ -19,8 +18,6 @@ export default function BookingDetail() {
   const [ratingOpen, setRatingOpen] = useState(false);
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState("");
-  const [tripLive, setTripLive] = useState(false);
-  const locSubRef = useRef<Location.LocationSubscription | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,77 +85,6 @@ export default function BookingDetail() {
     } catch (e: any) {
       Alert.alert("Failed", e.message);
     }
-  };
-
-  const startTrip = async () => {
-    if (!user) return;
-    // Location permission flow: check → request → settings fallback
-    const perm = await Location.getForegroundPermissionsAsync();
-    let granted = perm.granted;
-    if (!granted && perm.canAskAgain) {
-      const req = await Location.requestForegroundPermissionsAsync();
-      granted = req.granted;
-    }
-    if (!granted) {
-      Alert.alert(
-        "Location needed",
-        "Passengers track your live position during the trip. Enable location to start.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-        ],
-      );
-      return;
-    }
-    if (Platform.OS === "web") {
-      Alert.alert("Mobile only", "Live GPS broadcast works on the mobile app. Preview shows simulated tracking.");
-      return;
-    }
-    try {
-      locSubRef.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, timeInterval: 10000, distanceInterval: 25 },
-        async (pos) => {
-          try {
-            await api.postLocation({
-              booking_id: id!,
-              user_id: user.id,
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              heading: pos.coords.heading || 0,
-            });
-          } catch {}
-        },
-      );
-      setTripLive(true);
-      Alert.alert("Trip started", "Passengers can now see your live location.");
-    } catch (e: any) {
-      Alert.alert("Could not start tracking", e.message);
-    }
-  };
-
-  const endTrip = async () => {
-    try { locSubRef.current?.remove(); } catch {}
-    locSubRef.current = null;
-    setTripLive(false);
-    await update({ status: "completed" });
-  };
-
-  const cancelBooking = () => {
-    Alert.alert(
-      "Cancel booking?",
-      b.paid ? "A full refund will be credited to the passenger's wallet." : "This booking will be cancelled.",
-      [
-        { text: "Keep it", style: "cancel" },
-        {
-          text: "Cancel booking",
-          style: "destructive",
-          onPress: async () => {
-            await update({ status: "cancelled" });
-            Alert.alert("Cancelled", b.paid ? "Refund has been issued to the passenger wallet." : "Booking cancelled.");
-          },
-        },
-      ],
-    );
   };
 
   const submitRating = async () => {
@@ -237,20 +163,6 @@ export default function BookingDetail() {
           </View>
         )}
 
-        {isOwner && b.status === "accepted" && b.paid && !tripLive && (
-          <Pressable style={[styles.primary, { backgroundColor: colors.success }]} onPress={startTrip} testID="start-trip-button">
-            <Ionicons name="navigate-circle" size={18} color="#fff" />
-            <Text style={styles.primaryText}>Start Trip · Share Live GPS</Text>
-          </Pressable>
-        )}
-
-        {isOwner && tripLive && (
-          <Pressable style={[styles.primary, { backgroundColor: colors.onSurface }]} onPress={endTrip} testID="end-trip-button">
-            <Ionicons name="flag" size={18} color="#fff" />
-            <Text style={styles.primaryText}>End Trip (mark completed)</Text>
-          </Pressable>
-        )}
-
         {b.status === "accepted" && b.paid && (
           <Pressable style={[styles.linkBtn, { marginTop: spacing.md }]} onPress={() => update({ status: "completed" })} testID="complete-button">
             <Ionicons name="checkmark-done" size={18} color={colors.success} />
@@ -264,49 +176,7 @@ export default function BookingDetail() {
             <Text style={styles.primaryText}>Rate {isPassenger ? "Driver" : "Passenger"}</Text>
           </Pressable>
         )}
-
-        {(b.status === "pending" || (b.status === "accepted" && !tripLive)) && (
-          <Pressable style={styles.cancelBtn} onPress={cancelBooking} testID="cancel-booking-button">
-            <Ionicons name="close-circle-outline" size={18} color={colors.error} />
-            <Text style={styles.cancelText}>Cancel booking{b.paid ? " (full refund)" : ""}</Text>
-          </Pressable>
-        )}
-
-        {b.status === "cancelled" && (
-          <View style={styles.refundNote} testID="refund-note">
-            <Ionicons name="information-circle" size={16} color={colors.info} />
-            <Text style={styles.refundText}>{b.paid ? "Cancelled — full refund credited to passenger wallet." : "This booking was cancelled."}</Text>
-          </View>
-        )}
       </ScrollView>
-
-      <Modal transparent visible={payChooserOpen} animationType="slide" onRequestClose={() => setPayChooserOpen(false)}>
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Choose payment method</Text>
-            <Text style={{ color: colors.onSurfaceSecondary, marginTop: 4 }}>You&apos;ll pay ₹{b.total_price} to {b.owner?.name}. 10% platform fee applies to the driver&apos;s earning (0% for Driver Plus).</Text>
-            <Pressable testID="pay-razorpay" style={styles.gwBig} onPress={() => payOnline("razorpay")}>
-              <Ionicons name="card" size={22} color={colors.brandPrimary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gwBigTitle}>Razorpay</Text>
-                <Text style={styles.gwBigSub}>UPI · Cards · Netbanking · Wallets</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
-            </Pressable>
-            <Pressable testID="pay-phonepe" style={styles.gwBig} onPress={() => payOnline("phonepe")}>
-              <Ionicons name="phone-portrait" size={22} color={colors.brandPrimary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gwBigTitle}>PhonePe</Text>
-                <Text style={styles.gwBigSub}>UPI-first · India&apos;s #1 UPI app</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
-            </Pressable>
-            <Pressable onPress={() => setPayChooserOpen(false)} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.sm }}>
-              <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
 
       <Modal transparent visible={ratingOpen} animationType="fade" onRequestClose={() => setRatingOpen(false)}>
         <View style={styles.modalBg}>
@@ -380,8 +250,4 @@ const styles = StyleSheet.create({
   gwBig: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.md, backgroundColor: colors.surface },
   gwBigTitle: { fontSize: 16, fontWeight: "800", color: colors.onSurface },
   gwBigSub: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
-  cancelBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 13, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.error, marginTop: spacing.lg },
-  cancelText: { color: colors.error, fontWeight: "700" },
-  refundNote: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E3F2FD", padding: spacing.md, borderRadius: radius.md, marginTop: spacing.lg },
-  refundText: { flex: 1, fontSize: 13, color: colors.info, fontWeight: "600" },
 });

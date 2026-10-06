@@ -55,7 +55,7 @@ def new_id() -> str:
 # ---------- Models ----------
 class OrderIn(BaseModel):
     provider: Literal["razorpay", "phonepe"]
-    purpose: Literal["wallet_topup", "ride", "subscription"]
+    purpose: Literal["wallet_topup", "ride"]
     user_id: str
     amount: Optional[float] = None  # rupees; required for wallet_topup
     booking_id: Optional[str] = None  # required for ride
@@ -63,25 +63,6 @@ class OrderIn(BaseModel):
 
 class StatusIn(BaseModel):
     payment_id: str
-
-
-DRIVER_PLUS_PRICE = 99.0
-DRIVER_PLUS_RIDES = 20
-DRIVER_PLUS_DAYS = 30
-
-
-# Simple in-memory rate limiting for order creation
-_order_rate: dict = {}
-
-
-def _rate_limit(key: str, limit: int, window_sec: int):
-    import time
-    now = time.time()
-    hits = [t for t in _order_rate.get(key, []) if now - t < window_sec]
-    if len(hits) >= limit:
-        raise HTTPException(429, "Too many payment attempts. Please wait.")
-    hits.append(now)
-    _order_rate[key] = hits
 
 
 # ---------- Router factory ----------
@@ -94,8 +75,6 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
             if not body.amount or body.amount <= 0:
                 raise HTTPException(400, "amount is required for wallet_topup")
             return int(round(body.amount * 100))
-        if body.purpose == "subscription":
-            return int(round(DRIVER_PLUS_PRICE * 100))
         # ride
         if not body.booking_id:
             raise HTTPException(400, "booking_id is required for ride payment")
@@ -134,24 +113,7 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
             return
 
         amount_rupees = p["amount_paise"] / 100.0
-        if p["purpose"] == "subscription":
-            # Activate Driver Plus: 0% commission on next N rides
-            from datetime import timedelta as _td
-            await db.users.update_one(
-                {"id": p["user_id"]},
-                {"$set": {"driver_plus": {
-                    "active": True,
-                    "rides_left": DRIVER_PLUS_RIDES,
-                    "subscribed_at": utcnow_iso(),
-                    "expires_at": (datetime.now(timezone.utc) + _td(days=DRIVER_PLUS_DAYS)).isoformat(),
-                }}},
-            )
-            await db.wallet_txns.insert_one({
-                "id": new_id(), "user_id": p["user_id"], "amount": -amount_rupees,
-                "kind": "ride_payment", "note": "Driver Plus subscription (30 days)",
-                "created_at": utcnow_iso(),
-            })
-        elif p["purpose"] == "wallet_topup":
+        if p["purpose"] == "wallet_topup":
             await db.users.update_one(
                 {"id": p["user_id"]}, {"$inc": {"wallet_balance": amount_rupees}}
             )
@@ -168,11 +130,7 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
             if not booking:
                 logger.error(f"Booking gone at finalisation: {p['booking_id']}")
                 return
-            # Driver Plus: 0% commission while subscription rides remain
-            owner = await db.users.find_one({"id": booking["owner_id"]}, {"_id": 0})
-            dp = (owner or {}).get("driver_plus") or {}
-            dp_active = bool(dp.get("active")) and dp.get("expires_at", "") > utcnow_iso() and dp.get("rides_left", 0) > 0
-            commission = 0.0 if dp_active else round(amount_rupees * 0.10, 2)
+            commission = round(amount_rupees * 0.10, 2)
             owner_amt = round(amount_rupees - commission, 2)
             await db.bookings.update_one(
                 {"id": booking["id"]},
@@ -190,7 +148,7 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
             await db.users.update_one(
                 {"id": booking["owner_id"]}, {"$inc": {"wallet_balance": owner_amt}}
             )
-            txns = [
+            await db.wallet_txns.insert_many([
                 {
                     "id": new_id(),
                     "user_id": p["user_id"],
@@ -204,29 +162,22 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
                     "user_id": booking["owner_id"],
                     "amount": owner_amt,
                     "kind": "ride_earning",
-                    "note": f"Booking {booking['id']}" + (" (Driver Plus: 0% fee)" if dp_active else ""),
+                    "note": f"Booking {booking['id']}",
                     "created_at": utcnow_iso(),
                 },
-            ]
-            if commission > 0:
-                txns.append({
+                {
                     "id": new_id(),
                     "user_id": booking["owner_id"],
                     "amount": -commission,
                     "kind": "commission",
-                    "note": "Platform fee 10%",
+                    "note": f"Platform fee 10%",
                     "created_at": utcnow_iso(),
-                })
-            else:
-                await db.users.update_one(
-                    {"id": booking["owner_id"]}, {"$inc": {"driver_plus.rides_left": -1}}
-                )
-            await db.wallet_txns.insert_many(txns)
+                },
+            ])
 
     # ---------- Create order ----------
     @router.post("/order")
     async def create_order(body: OrderIn):
-        _rate_limit(f"order:{body.user_id}", 10, 60)
         amount_paise = await _resolve_amount(body)
         payment_id = new_id()
 

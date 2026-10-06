@@ -31,20 +31,13 @@ export default function Home() {
   const [date, setDate] = useState(""); // YYYY-MM-DD
   const [seats, setSeats] = useState("1");
   const [vehicleType, setVehicleType] = useState("all");
-  const [womenOnly, setWomenOnly] = useState(false);
-  const [evOnly, setEvOnly] = useState(false);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const goSearch = () => {
     router.push({
       pathname: "/search-results",
-      params: {
-        from, to, date,
-        vehicle_type: vehicleType,
-        ...(womenOnly ? { women_only: "true" } : {}),
-        ...(evOnly ? { fuel_type: "ev" } : {}),
-      },
+      params: { from, to, date, vehicle_type: vehicleType },
     });
   };
 
@@ -154,25 +147,6 @@ export default function Home() {
                 />
               ))}
             </ScrollView>
-
-            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.md }}>
-              <Pressable
-                testID="filter-women-only"
-                onPress={() => setWomenOnly(!womenOnly)}
-                style={[styles.chip, womenOnly && { backgroundColor: "#AD1457", borderColor: "#AD1457" }]}
-              >
-                <Ionicons name="female" size={14} color={womenOnly ? "#fff" : colors.onSurfaceSecondary} />
-                <Text style={[styles.chipText, womenOnly && { color: "#fff" }]}>Women-only</Text>
-              </Pressable>
-              <Pressable
-                testID="filter-ev"
-                onPress={() => setEvOnly(!evOnly)}
-                style={[styles.chip, evOnly && { backgroundColor: colors.success, borderColor: colors.success }]}
-              >
-                <Ionicons name="leaf" size={14} color={evOnly ? "#fff" : colors.onSurfaceSecondary} />
-                <Text style={[styles.chipText, evOnly && { color: "#fff" }]}>EV rides</Text>
-              </Pressable>
-            </View>
 
             <Pressable testID="search-button" style={styles.cta} onPress={goSearch}>
               <Ionicons name="search" size={18} color="#fff" />
