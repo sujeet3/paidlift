@@ -867,6 +867,17 @@ async def websocket_location(websocket: WebSocket, ride_id: str):
         ws_manager.disconnect_tracking(ride_id, websocket)
 
 
+# Root Health Endpoint
+@app.get("/")
+def read_root():
+    return {
+        "status": "ok",
+        "message": "PaidLift Backend API is running",
+        "docs": "/docs",
+        "api": "/api"
+    }
+
+
 # Include routers
 app.include_router(api_router)
 app.include_router(build_payments_router(db, API_PUBLIC_URL))
