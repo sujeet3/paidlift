@@ -14,7 +14,8 @@ export default function Chat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [booking, setBooking] = useState<any>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -27,9 +28,37 @@ export default function Chat() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, [load]);
+    if (!bookingId) return;
+
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8001";
+    const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws/chat/${bookingId}`;
+
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const newMsg = JSON.parse(event.data);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        } catch {}
+      };
+    } catch (e) {
+      console.warn("WebSocket initiation error:", e);
+    }
+
+    // Background sync fallback
+    const fallbackTimer = setInterval(load, 10000);
+
+    return () => {
+      clearInterval(fallbackTimer);
+      if (ws) ws.close();
+    };
+  }, [bookingId, load]);
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
@@ -39,11 +68,17 @@ export default function Chat() {
     if (!user || !text.trim()) return;
     const t = text;
     setText("");
-    try {
-      await api.sendChat({ booking_id: bookingId, sender_id: user.id, text: t });
-      await load();
-    } catch {}
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ booking_id: bookingId, sender_id: user.id, text: t }));
+    } else {
+      try {
+        await api.sendChat({ booking_id: bookingId, sender_id: user.id, text: t });
+        await load();
+      } catch {}
+    }
   };
+
 
   const other = user?.id === booking?.owner_id ? booking?.passenger : booking?.owner;
 

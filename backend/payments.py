@@ -55,7 +55,7 @@ def new_id() -> str:
 # ---------- Models ----------
 class OrderIn(BaseModel):
     provider: Literal["razorpay", "phonepe"]
-    purpose: Literal["wallet_topup", "ride"]
+    purpose: Literal["wallet_topup", "ride", "driver_plus"]
     user_id: str
     amount: Optional[float] = None  # rupees; required for wallet_topup
     booking_id: Optional[str] = None  # required for ride
@@ -65,12 +65,24 @@ class StatusIn(BaseModel):
     payment_id: str
 
 
+class PayoutRequestIn(BaseModel):
+    user_id: str
+    amount: float
+    payout_method: Literal["upi", "bank_account"] = "upi"
+    upi_id: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc: Optional[str] = None
+    beneficiary_name: Optional[str] = None
+
+
 # ---------- Router factory ----------
 def build_router(db, base_url_from_env: str) -> APIRouter:
     router = APIRouter(prefix="/api/payments")
 
     async def _resolve_amount(body: OrderIn) -> int:
         """Returns amount in paise. Recomputed server-side (never trust client)."""
+        if body.purpose == "driver_plus":
+            return 9900  # ₹99 in paise for Driver Plus subscription
         if body.purpose == "wallet_topup":
             if not body.amount or body.amount <= 0:
                 raise HTTPException(400, "amount is required for wallet_topup")
@@ -86,6 +98,7 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
         if b.get("paid"):
             raise HTTPException(400, "Booking is already paid")
         return int(round(b["total_price"] * 100))
+
 
     async def _finalise(payment_id: str, provider_payment_id: str, status: str):
         p = await db.payments.find_one({"id": payment_id}, {"_id": 0})
@@ -125,12 +138,35 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
                 "note": f"Wallet top-up via {p['provider'].title()}",
                 "created_at": utcnow_iso(),
             })
+        elif p["purpose"] == "driver_plus":
+            try:
+                from subscriptions import activate_driver_plus
+                await activate_driver_plus(db, p["user_id"], amount_rupees)
+            except Exception as e:
+                logger.error(f"Error activating driver plus: {e}")
+            await db.wallet_txns.insert_one({
+                "id": new_id(),
+                "user_id": p["user_id"],
+                "amount": -amount_rupees,
+                "kind": "subscription",
+                "note": f"Driver Plus Monthly Subscription (₹99) via {p['provider'].title()}",
+                "created_at": utcnow_iso(),
+            })
         else:  # ride
             booking = await db.bookings.find_one({"id": p["booking_id"]}, {"_id": 0})
             if not booking:
                 logger.error(f"Booking gone at finalisation: {p['booking_id']}")
                 return
-            commission = round(amount_rupees * 0.10, 2)
+
+            # Check if owner has Driver Plus (0% commission)
+            commission_waived = False
+            try:
+                from subscriptions import consume_driver_commission_waiver
+                commission_waived = await consume_driver_commission_waiver(db, booking["owner_id"])
+            except Exception as e:
+                logger.warning(f"Driver plus check failed: {e}")
+
+            commission = 0.0 if commission_waived else round(amount_rupees * 0.10, 2)
             owner_amt = round(amount_rupees - commission, 2)
             await db.bookings.update_one(
                 {"id": booking["id"]},
@@ -148,7 +184,7 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
             await db.users.update_one(
                 {"id": booking["owner_id"]}, {"$inc": {"wallet_balance": owner_amt}}
             )
-            await db.wallet_txns.insert_many([
+            txns = [
                 {
                     "id": new_id(),
                     "user_id": p["user_id"],
@@ -162,18 +198,41 @@ def build_router(db, base_url_from_env: str) -> APIRouter:
                     "user_id": booking["owner_id"],
                     "amount": owner_amt,
                     "kind": "ride_earning",
-                    "note": f"Booking {booking['id']}",
+                    "note": f"Booking {booking['id']}" + (" (0% commission Driver Plus)" if commission_waived else ""),
                     "created_at": utcnow_iso(),
                 },
-                {
+            ]
+            if commission > 0:
+                txns.append({
                     "id": new_id(),
                     "user_id": booking["owner_id"],
                     "amount": -commission,
                     "kind": "commission",
                     "note": f"Platform fee 10%",
                     "created_at": utcnow_iso(),
-                },
-            ])
+                })
+            await db.wallet_txns.insert_many(txns)
+
+            # Trigger referral reward if this was referee's first paid ride
+            try:
+                from referrals import process_referral_reward_on_first_ride
+                await process_referral_reward_on_first_ride(db, booking["passenger_id"])
+            except Exception as e:
+                logger.warning(f"Referral reward check error: {e}")
+
+            # Trigger push notifications
+            try:
+                from notifications import notify_user
+                await notify_user(
+                    db,
+                    booking["owner_id"],
+                    "Ride Booked & Paid! 🎉",
+                    f"A passenger booked and paid ₹{amount_rupees} for your ride.",
+                    {"booking_id": booking["id"], "ride_id": booking["ride_id"]},
+                )
+            except Exception as e:
+                logger.warning(f"Push notification error: {e}")
+
 
     # ---------- Create order ----------
     @router.post("/order")
@@ -489,16 +548,78 @@ new Razorpay(options).open();
                 await _finalise(p["id"], "", "failed")
         return {"ok": True}
 
+    # ---------- Driver Payouts / Withdrawals ----------
+    @router.post("/payout-request")
+    async def request_payout(body: PayoutRequestIn):
+        """Allows drivers to request withdrawal of earned balance (minimum ₹200)."""
+        if body.amount < 200.0:
+            raise HTTPException(400, "Minimum withdrawal limit is ₹200")
+
+        user = await db.users.find_one({"id": body.user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(404, "User not found")
+        if user.get("wallet_balance", 0.0) < body.amount:
+            raise HTTPException(400, "Insufficient wallet balance")
+
+        # Atomic deduction to prevent double-withdrawal race condition
+        res = await db.users.update_one(
+            {"id": body.user_id, "wallet_balance": {"$gte": body.amount}},
+            {"$inc": {"wallet_balance": -body.amount}},
+        )
+        if res.modified_count == 0:
+            raise HTTPException(400, "Insufficient wallet balance")
+
+        payout_id = f"pout_{new_id()[:12]}"
+        now = utcnow_iso()
+        payout_doc = {
+            "id": payout_id,
+            "user_id": body.user_id,
+            "amount": body.amount,
+            "status": "pending",  # pending, settled, rejected
+            "payout_method": body.payout_method,
+            "upi_id": body.upi_id,
+            "account_number": body.account_number,
+            "ifsc": body.ifsc,
+            "beneficiary_name": body.beneficiary_name or user.get("name", "Driver"),
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.payouts.insert_one(payout_doc)
+
+        dest_desc = body.upi_id if body.payout_method == "upi" else f"{body.account_number} ({body.ifsc})"
+        await db.wallet_txns.insert_one({
+            "id": new_id(),
+            "user_id": body.user_id,
+            "amount": -body.amount,
+            "kind": "withdraw",
+            "note": f"Driver withdrawal request via {body.payout_method.upper()}: {dest_desc}",
+            "created_at": now,
+        })
+        return payout_doc
+
+    @router.get("/payouts/{user_id}")
+    async def list_user_payouts(user_id: str):
+        docs = await db.payouts.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+        return docs
+
     return router
 
 
-# ---------- PhonePe helpers ----------
+# ---------- PhonePe helpers with Expiry-Aware Token Cache (TRD 10.3) ----------
+_PHONEPE_TOKEN_CACHE = {"token": None, "expires_at": 0.0}
+
+
 def _phonepe_base() -> str:
     return "https://api-preprod.phonepe.com/apis/pg-sandbox" if os.environ.get("PHONEPE_ENV", "sandbox") == "sandbox" else "https://api.phonepe.com/apis/pg"
 
 
 async def _phonepe_token() -> str:
-    """Fetch OAuth token for PhonePe V2. Kept simple — no caching."""
+    """Fetch OAuth token for PhonePe V2 with TTL expiry-aware in-memory cache."""
+    import time
+    now_ts = time.time()
+    if _PHONEPE_TOKEN_CACHE["token"] and _PHONEPE_TOKEN_CACHE["expires_at"] > now_ts + 60:
+        return _PHONEPE_TOKEN_CACHE["token"]
+
     base = _phonepe_base()
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.post(
@@ -512,4 +633,10 @@ async def _phonepe_token() -> str:
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         r.raise_for_status()
-        return r.json()["access_token"]
+        data = r.json()
+        token = data["access_token"]
+        expires_in = data.get("expires_in", 3600)
+        _PHONEPE_TOKEN_CACHE["token"] = token
+        _PHONEPE_TOKEN_CACHE["expires_at"] = now_ts + float(expires_in)
+        return token
+

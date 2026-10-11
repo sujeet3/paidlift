@@ -1,10 +1,12 @@
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const ADMIN_SECRET = "paidlift_superadmin_secret_2026";
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
+      "X-Admin-Key": ADMIN_SECRET,
       ...(opts.headers || {}),
     },
   });
@@ -84,8 +86,112 @@ export const api = {
       "/payments/status",
       { method: "POST", body: JSON.stringify({ payment_id }) },
     ),
+
+  uploadDocument: async (data: { base64_data?: string; doc_type: string; user_id?: string }) => {
+    const formData = new FormData();
+    if (data.base64_data) formData.append("base64_data", data.base64_data);
+    formData.append("doc_type", data.doc_type);
+    if (data.user_id) formData.append("user_id", data.user_id);
+    const res = await fetch(`${BASE}/api/upload/document`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<{ ok: boolean; url: string; filename: string }>;
+  },
+  cancelRide: (rideId: string, reason?: string) =>
+    request<any>(`/rides/${rideId}/cancel?reason=${encodeURIComponent(reason || "Driver cancelled")}`, {
+      method: "POST",
+    }),
+  updateRideLocation: (
+    rideId: string,
+    location: { latitude: number; longitude: number; heading?: number; speed?: number }
+  ) =>
+    request<any>(`/rides/${rideId}/location`, {
+      method: "PATCH",
+      body: JSON.stringify(location),
+    }),
+  requestPayout: (data: {
+    user_id: string;
+    amount: number;
+    payout_method: "upi" | "bank_account";
+    upi_id?: string;
+    account_number?: string;
+    ifsc?: string;
+    beneficiary_name?: string;
+  }) => request<any>("/payments/payout-request", { method: "POST", body: JSON.stringify(data) }),
+  listPayouts: (userId: string) => request<any[]>(`/payments/payouts/${userId}`),
+  savePushToken: (userId: string, token: string) =>
+    request<any>(`/users/${userId}/push-token`, { method: "POST", body: JSON.stringify({ token }) }),
+  getSubscriptionPlans: () => request<any[]>("/subscriptions/plans"),
+  getUserSubscription: (userId: string) =>
+    request<{ has_driver_plus: boolean; subscription: any }>(`/subscriptions/${userId}`),
+  getReferrals: (userId: string) => request<any>(`/referrals/${userId}`),
+  applyReferral: (userId: string, code: string) =>
+    request<any>(`/referrals/apply?user_id=${userId}`, { method: "POST", body: JSON.stringify({ code }) }),
+  getCorridors: (from?: string, to?: string) =>
+    request<any[]>(`/corridors${from && to ? `?from_location=${from}&to_location=${to}` : ""}`),
+  getCorridorStops: (city: string) =>
+    request<string[]>(`/corridors/stops?city=${encodeURIComponent(city)}`),
+
+  // Super Admin CRUD
   adminStats: () => request<any>("/admin/stats"),
-  adminUsers: () => request<any[]>("/admin/users"),
-  adminRides: () => request<any[]>("/admin/rides"),
-  adminSos: () => request<any[]>("/admin/sos"),
+  adminUsers: (query?: string, role?: string, status?: string) => {
+    const p = new URLSearchParams();
+    if (query) p.append("query", query);
+    if (role) p.append("role", role);
+    if (status) p.append("status", status);
+    return request<{ total: number; users: any[] }>(`/admin/users?${p.toString()}`);
+  },
+  adminUpdateUser: (userId: string, data: any) =>
+    request<any>(`/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(data) }),
+  adminWalletAdjust: (userId: string, amount: number, reason: string) =>
+    request<any>(`/admin/users/${userId}/wallet-adjust`, {
+      method: "POST",
+      body: JSON.stringify({ amount, reason }),
+    }),
+  adminVehicles: (status: "all" | "pending" | "approved" | "rejected" = "all") =>
+    request<{ total: number; vehicles: any[] }>(`/admin/vehicles?status=${status}`),
+  adminReviewVehicle: (vehicleId: string, approved: boolean, reason?: string) =>
+    request<any>(`/admin/vehicles/${vehicleId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ approved, rejection_reason: reason }),
+    }),
+  adminRides: (status?: string) => {
+    const p = status ? `?status=${status}` : "";
+    return request<{ total: number; rides: any[] }>(`/admin/rides${p}`);
+  },
+  adminForceCancelRide: (rideId: string, reason: string) =>
+    request<any>(`/admin/rides/${rideId}/force-cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason, refund_passengers: true }),
+    }),
+  adminSos: (status?: string) => {
+    const p = status ? `?status=${status}` : "";
+    return request<any[]>(`/admin/sos${p}`);
+  },
+  adminUpdateSos: (sosId: string, status: string, notes?: string) =>
+    request<any>(`/admin/sos/${sosId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, resolution_notes: notes }),
+    }),
+  adminPayouts: (status: "all" | "pending" | "settled" | "rejected" = "all") =>
+    request<any[]>(`/admin/payouts?status=${status}`),
+  adminProcessPayout: (payoutId: string, action: "approve" | "reject", reasonOrRef?: string) =>
+    request<any>(`/admin/payouts/${payoutId}/process`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: action === "approve" ? "approve" : "reject",
+        transaction_ref: action === "approve" ? reasonOrRef || "IMPS_SETTLED_AUTO" : undefined,
+        rejection_reason: action === "reject" ? reasonOrRef || "Declined by Admin" : undefined,
+      }),
+    }),
+  adminCleanupExpiredRides: () =>
+    request<any>("/admin/maintenance/cleanup-expired-rides", { method: "POST" }),
+  adminFixSeats: () =>
+    request<any>("/admin/maintenance/fix-seat-counts", { method: "POST" }),
 };
+

@@ -71,7 +71,7 @@ echo -e "\n${BLUE}[3/4] Verifying Dependencies...${NC}"
 if [ ! -d "$BACKEND_DIR/.venv" ]; then
     echo "Setting up Python virtual environment in backend/.venv..."
     python3 -m venv "$BACKEND_DIR/.venv"
-    "$BACKEND_DIR/.venv/bin/pip" install fastapi uvicorn motor pymongo pydantic python-dotenv httpx razorpay starlette requests pytest email-validator
+    "$BACKEND_DIR/.venv/bin/pip" install fastapi uvicorn motor pymongo pydantic python-dotenv httpx razorpay starlette requests pytest email-validator python-multipart
 fi
 
 if [ ! -d "$FRONTEND_DIR/node_modules" ]; then

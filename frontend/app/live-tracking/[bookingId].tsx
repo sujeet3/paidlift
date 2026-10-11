@@ -15,7 +15,8 @@ export default function LiveTracking() {
   const { user } = useUser();
   const [b, setB] = useState<any>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
-  const [progress, setProgress] = useState(0); // 0..1 along route
+  const [realDriverPos, setRealDriverPos] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -30,24 +31,52 @@ export default function LiveTracking() {
     })();
   }, [bookingId]);
 
-  // Advance the driver marker along the polyline every 3s
+  // Connect to live GPS streaming WebSocket
   useEffect(() => {
-    if (!directions) return;
+    if (!b?.ride_id) return;
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:8001";
+    const wsUrl = backendUrl.replace(/^http/, "ws") + `/ws/ride/${b.ride_id}/location`;
+
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const loc = JSON.parse(event.data);
+          if (loc.latitude && loc.longitude) {
+            setRealDriverPos({ latitude: loc.latitude, longitude: loc.longitude });
+          }
+        } catch {}
+      };
+    } catch (e) {
+      console.warn("Tracking WebSocket error:", e);
+    }
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [b?.ride_id]);
+
+  // Fallback simulator if driver is not actively streaming hardware GPS
+  useEffect(() => {
+    if (!directions || realDriverPos) return;
     const t = setInterval(() => {
       setProgress((p) => Math.min(1, p + 0.02));
     }, 3000);
     return () => clearInterval(t);
-  }, [directions]);
+  }, [directions, realDriverPos]);
 
   const driverPos = useMemo(() => {
+    if (realDriverPos) return realDriverPos;
     if (!directions?.overviewPolyline) return undefined;
     const pts = decodePolyline(directions.overviewPolyline);
     if (pts.length === 0) return undefined;
     const idx = Math.min(pts.length - 1, Math.floor(progress * (pts.length - 1)));
     return pts[idx];
-  }, [directions?.overviewPolyline, progress]);
+  }, [realDriverPos, directions?.overviewPolyline, progress]);
 
   const etaSec = directions ? Math.max(0, Math.round(directions.durationSeconds * (1 - progress))) : 0;
+
 
   const triggerSOS = async () => {
     if (!user) return;

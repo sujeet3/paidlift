@@ -11,6 +11,7 @@ export default function SearchResults() {
   const params = useLocalSearchParams<{ from?: string; to?: string; date?: string; vehicle_type?: string }>();
   const [rides, setRides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [womenOnlyFilter, setWomenOnlyFilter] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -21,12 +22,13 @@ export default function SearchResults() {
         if (params.to) q.to_location = params.to;
         if (params.date) q.date = params.date;
         if (params.vehicle_type) q.vehicle_type = params.vehicle_type;
+        if (womenOnlyFilter) q.women_only = "true";
         const data = await api.searchRides(q);
         setRides(data);
       } catch {}
       setLoading(false);
     })();
-  }, [params.from, params.to, params.date, params.vehicle_type]);
+  }, [params.from, params.to, params.date, params.vehicle_type, womenOnlyFilter]);
 
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
@@ -43,12 +45,28 @@ export default function SearchResults() {
         </View>
       </View>
 
+      <View style={styles.filterBar}>
+        <Pressable
+          style={[styles.filterChip, !womenOnlyFilter && styles.filterChipActive]}
+          onPress={() => setWomenOnlyFilter(false)}
+        >
+          <Text style={[styles.filterText, !womenOnlyFilter && styles.filterTextActive]}>All Rides</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.filterChip, womenOnlyFilter && styles.filterChipWomen]}
+          onPress={() => setWomenOnlyFilter(!womenOnlyFilter)}
+        >
+          <Ionicons name="woman" size={13} color={womenOnlyFilter ? "#fff" : "#D81B60"} />
+          <Text style={[styles.filterText, womenOnlyFilter && styles.filterTextActive]}>Women-Only</Text>
+        </Pressable>
+      </View>
+
       <ScrollView contentContainerStyle={styles.list}>
         {loading && <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xxl }} />}
 
         {!loading && rides.length === 0 && (
           <View style={styles.empty} testID="empty-results">
-            <Ionicons name="road-outline" size={48} color={colors.onSurfaceTertiary} />
+            <Ionicons name="map-outline" size={48} color={colors.onSurfaceTertiary} />
             <Text style={styles.emptyText}>No rides found</Text>
             <Text style={styles.emptySub}>Try changing your date or vehicle filters.</Text>
           </View>
@@ -66,10 +84,22 @@ export default function SearchResults() {
                 <Text style={styles.avatarText}>{(r.owner?.name || "U").slice(0, 1)}</Text>
               </View>
               <View style={{ flex: 1, marginLeft: spacing.md }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <Text style={styles.owner}>{r.owner?.name || "Driver"}</Text>
                   {r.owner?.aadhaar_verified && (
                     <Ionicons name="shield-checkmark" size={14} color={colors.success} />
+                  )}
+                  {r.owner?.driver_plus && (
+                    <View style={styles.driverPlusBadge}>
+                      <Ionicons name="flash" size={10} color="#EF6C00" />
+                      <Text style={styles.driverPlusText}>Driver Plus</Text>
+                    </View>
+                  )}
+                  {r.women_only && (
+                    <View style={styles.womenBadge}>
+                      <Ionicons name="woman" size={10} color="#D81B60" />
+                      <Text style={styles.womenBadgeText}>Women-Only</Text>
+                    </View>
                   )}
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
@@ -138,6 +168,16 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   route: { fontSize: 17, fontWeight: "800", color: colors.onSurface },
   meta: { fontSize: 12, color: colors.onSurfaceSecondary, marginTop: 2 },
+  filterBar: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  filterChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  filterChipActive: { backgroundColor: colors.onSurface, borderColor: colors.onSurface },
+  filterChipWomen: { backgroundColor: "#D81B60", borderColor: "#D81B60" },
+  filterText: { fontSize: 12, fontWeight: "700", color: colors.onSurfaceSecondary },
+  filterTextActive: { color: "#fff" },
+  driverPlusBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFF3E0", paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
+  driverPlusText: { fontSize: 10, fontWeight: "800", color: "#EF6C00" },
+  womenBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FCE4EC", paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.pill },
+  womenBadgeText: { fontSize: 10, fontWeight: "800", color: "#D81B60" },
   list: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
   empty: { alignItems: "center", marginTop: spacing.xxxl },
   emptyText: { ...type.h3, marginTop: spacing.md },

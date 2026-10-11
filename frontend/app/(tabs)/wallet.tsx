@@ -11,10 +11,19 @@ import { colors, spacing, radius, type } from "@/src/theme";
 export default function Wallet() {
   const { user, refresh } = useUser();
   const [wallet, setWallet] = useState<{ balance: number; transactions: any[] }>({ balance: 0, transactions: [] });
+  const [hasDriverPlus, setHasDriverPlus] = useState(false);
   const [loading, setLoading] = useState(false);
   const [topupOpen, setTopupOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [amount, setAmount] = useState("500");
+  const [withdrawAmount, setWithdrawAmount] = useState("200");
+  const [payoutMethod, setPayoutMethod] = useState<"upi" | "bank_account">("upi");
+  const [upiId, setUpiId] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [beneficiaryName, setBeneficiaryName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [provider, setProvider] = useState<"razorpay" | "phonepe">("razorpay");
 
   const load = useCallback(async () => {
@@ -23,6 +32,8 @@ export default function Wallet() {
     try {
       const w = await api.getWallet(user.id);
       setWallet(w);
+      const sub = await api.getUserSubscription(user.id);
+      setHasDriverPlus(sub.has_driver_plus);
     } catch {}
     setLoading(false);
   }, [user]);
@@ -58,6 +69,67 @@ export default function Wallet() {
     setSaving(false);
   };
 
+  const doWithdraw = async () => {
+    if (!user) return;
+    const amt = parseFloat(withdrawAmount);
+    if (!amt || amt < 200) {
+      return Alert.alert("Minimum Limit", "Minimum withdrawal amount is ₹200.");
+    }
+    if (amt > wallet.balance) {
+      return Alert.alert("Insufficient Balance", "You cannot withdraw more than your available balance.");
+    }
+    if (payoutMethod === "upi" && !upiId.includes("@")) {
+      return Alert.alert("Invalid UPI", "Please enter a valid UPI ID (e.g., driver@okaxis).");
+    }
+    if (payoutMethod === "bank_account" && (!accountNumber || !ifsc)) {
+      return Alert.alert("Missing Details", "Please enter your Account Number and IFSC Code.");
+    }
+
+    setWithdrawing(true);
+    try {
+      await api.requestPayout({
+        user_id: user.id,
+        amount: amt,
+        payout_method: payoutMethod,
+        upi_id: upiId,
+        account_number: accountNumber,
+        ifsc,
+        beneficiary_name: beneficiaryName || user.name,
+      });
+      setWithdrawOpen(false);
+      Alert.alert("Payout Requested", `₹${amt} withdrawal request submitted successfully. Processing via IMPS/UPI.`);
+      await load();
+      if (refresh) await refresh();
+    } catch (e: any) {
+      Alert.alert("Withdrawal Failed", e.message);
+    }
+    setWithdrawing(false);
+  };
+
+  const subscribeDriverPlus = async () => {
+    if (!user) return;
+    try {
+      const order = await api.createPaymentOrder({
+        provider: "razorpay",
+        purpose: "driver_plus" as any,
+        user_id: user.id,
+        amount: 99,
+      });
+      router.push({
+        pathname: "/checkout",
+        params: {
+          payment_id: order.payment_id,
+          checkout_url: order.checkout_url,
+          provider: order.provider,
+          simulated: String(order.simulated),
+          return_path: "/(tabs)/wallet",
+        },
+      });
+    } catch (e: any) {
+      Alert.alert("Failed", e.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
@@ -80,12 +152,32 @@ export default function Wallet() {
             <Pressable
               testID="wallet-withdraw-button"
               style={[styles.actionBtn, styles.actionGhost]}
-              onPress={() => Alert.alert("Withdraw", "Withdrawals will be enabled after KYC review.")}
+              onPress={() => setWithdrawOpen(true)}
             >
               <Ionicons name="arrow-down-circle" size={18} color={colors.brandPrimary} />
               <Text style={[styles.actionText, { color: colors.brandPrimary }]}>Withdraw</Text>
             </Pressable>
           </View>
+        </View>
+
+        {/* Driver Plus Membership Banner */}
+        <View style={styles.driverPlusCard}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="sparkles" size={16} color="#FFD700" />
+              <Text style={styles.driverPlusTitle}>Driver Plus {hasDriverPlus ? "Active" : "(₹99/mo)"}</Text>
+            </View>
+            <Text style={styles.driverPlusSub}>
+              {hasDriverPlus
+                ? "You enjoy 0% platform commission on your rides this month!"
+                : "Get 0% platform fee on first 20 rides + priority search badge."}
+            </Text>
+          </View>
+          {!hasDriverPlus && (
+            <Pressable style={styles.upgradeBtn} onPress={subscribeDriverPlus}>
+              <Text style={styles.upgradeBtnText}>Upgrade</Text>
+            </Pressable>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>Recent transactions</Text>
@@ -119,11 +211,12 @@ export default function Wallet() {
         ))}
       </ScrollView>
 
+      {/* Topup Modal */}
       <Modal transparent visible={topupOpen} animationType="slide" onRequestClose={() => setTopupOpen(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Add money to wallet</Text>
-            <Text style={styles.modalSub}>Mocked payment for demo — instantly credits your wallet.</Text>
+            <Text style={styles.modalSub}>Secure gateway checkout via Razorpay or PhonePe.</Text>
             <TextInput
               testID="topup-amount-input"
               style={styles.modalInput}
@@ -170,6 +263,83 @@ export default function Wallet() {
           </View>
         </View>
       </Modal>
+
+      {/* Withdraw Modal */}
+      <Modal transparent visible={withdrawOpen} animationType="slide" onRequestClose={() => setWithdrawOpen(false)}>
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Withdraw Earnings</Text>
+            <Text style={styles.modalSub}>Minimum withdrawal limit: ₹200. Transferred via UPI or IMPS.</Text>
+            <TextInput
+              testID="withdraw-amount-input"
+              style={styles.modalInput}
+              keyboardType="number-pad"
+              value={withdrawAmount}
+              onChangeText={setWithdrawAmount}
+              placeholder="Amount ₹"
+              placeholderTextColor={colors.onSurfaceTertiary}
+            />
+
+            <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+              <Pressable
+                onPress={() => setPayoutMethod("upi")}
+                style={[styles.preset, payoutMethod === "upi" && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
+              >
+                <Text style={[styles.presetText, payoutMethod === "upi" && { color: "#fff" }]}>UPI ID</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setPayoutMethod("bank_account")}
+                style={[styles.preset, payoutMethod === "bank_account" && { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary }]}
+              >
+                <Text style={[styles.presetText, payoutMethod === "bank_account" && { color: "#fff" }]}>Bank Account</Text>
+              </Pressable>
+            </View>
+
+            {payoutMethod === "upi" ? (
+              <TextInput
+                style={[styles.modalInput, { fontSize: 15, textAlign: "left", marginTop: spacing.md }]}
+                value={upiId}
+                onChangeText={setUpiId}
+                placeholder="Enter UPI ID (e.g. driver@upi)"
+                placeholderTextColor={colors.onSurfaceTertiary}
+              />
+            ) : (
+              <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+                <TextInput
+                  style={[styles.modalInput, { fontSize: 15, textAlign: "left", marginTop: 0 }]}
+                  value={accountNumber}
+                  onChangeText={setAccountNumber}
+                  placeholder="Bank Account Number"
+                  placeholderTextColor={colors.onSurfaceTertiary}
+                  keyboardType="number-pad"
+                />
+                <TextInput
+                  style={[styles.modalInput, { fontSize: 15, textAlign: "left", marginTop: 0 }]}
+                  value={ifsc}
+                  onChangeText={setIfsc}
+                  placeholder="IFSC Code (e.g. SBIN0001234)"
+                  placeholderTextColor={colors.onSurfaceTertiary}
+                  autoCapitalize="characters"
+                />
+                <TextInput
+                  style={[styles.modalInput, { fontSize: 15, textAlign: "left", marginTop: 0 }]}
+                  value={beneficiaryName}
+                  onChangeText={setBeneficiaryName}
+                  placeholder="Beneficiary Account Holder Name"
+                  placeholderTextColor={colors.onSurfaceTertiary}
+                />
+              </View>
+            )}
+
+            <Pressable testID="withdraw-confirm-button" style={styles.modalBtn} onPress={doWithdraw} disabled={withdrawing}>
+              {withdrawing ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Withdraw ₹{withdrawAmount}</Text>}
+            </Pressable>
+            <Pressable onPress={() => setWithdrawOpen(false)} style={{ padding: spacing.md, alignItems: "center" }}>
+              <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -180,10 +350,14 @@ function labelFor(kind: string) {
     case "ride_payment": return "Ride payment";
     case "ride_earning": return "Ride earning";
     case "commission": return "Platform fee";
-    case "withdraw": return "Withdrawal";
+    case "withdraw": return "Driver Withdrawal";
+    case "subscription": return "Driver Plus (₹99)";
+    case "referral_bonus": return "Referral Reward 🎉";
+    case "ride_refund": return "Ride Refund ↩";
     default: return kind;
   }
 }
+
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surfaceSecondary },
@@ -271,4 +445,25 @@ const styles = StyleSheet.create({
   gwOptActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   gwOptText: { fontWeight: "800", color: colors.onSurface, fontSize: 14, marginTop: 2 },
   gwOptSub: { fontSize: 11, color: colors.onSurfaceSecondary },
+  driverPlusCard: {
+    backgroundColor: "#1A237E",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: "#3949AB",
+  },
+  driverPlusTitle: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  driverPlusSub: { color: "#C5CAE9", fontSize: 11, marginTop: 2 },
+  upgradeBtn: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+  },
+  upgradeBtnText: { color: "#1A237E", fontWeight: "800", fontSize: 12 },
 });
+

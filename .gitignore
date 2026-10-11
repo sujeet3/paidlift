@@ -80,3 +80,6 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
+
+# Agent Command Logs
+.agent_terminal_commands.log

@@ -14,6 +14,12 @@ export type User = {
   rating_avg: number;
   rating_count: number;
   wallet_balance: number;
+  gender?: string;
+  driver_plus?: boolean;
+  driver_plus_expires?: string | null;
+  referral_code?: string;
+  referred_by?: string | null;
+  push_token?: string | null;
 };
 
 type Ctx = {

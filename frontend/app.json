@@ -48,6 +48,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d5262e9a-6be5-4016-80ee-14868d48ec1e"
+      }
+    },
+    "owner": "robotrac"
   }
 }

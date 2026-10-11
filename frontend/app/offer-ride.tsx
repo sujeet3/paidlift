@@ -25,6 +25,15 @@ export default function OfferRide() {
   const [seats, setSeats] = useState("2");
   const [price, setPrice] = useState("300");
   const [notes, setNotes] = useState("");
+  const [womenOnly, setWomenOnly] = useState(false);
+
+  const HIGHWAY_HUBS = [
+    "Kalamboli McDonalds",
+    "Wakad Flyover",
+    "IFFCO Chowk",
+    "Kengeri Bus Stand",
+    "Behror Mid-way",
+  ];
 
   useEffect(() => {
     (async () => {
@@ -38,6 +47,12 @@ export default function OfferRide() {
     })();
   }, [user]);
 
+  const addStop = (hub: string) => {
+    if (!stops.includes(hub)) {
+      setStops((prev) => (prev ? `${prev}, ${hub}` : hub));
+    }
+  };
+
   const publish = async () => {
     if (!user) return;
     if (!vehicleId) {
@@ -47,6 +62,10 @@ export default function OfferRide() {
     }
     if (!from.trim() || !to.trim() || !date.trim()) {
       Alert.alert("Missing info", "Please fill from, to and date.");
+      return;
+    }
+    if (womenOnly && user.gender?.toLowerCase() !== "female") {
+      Alert.alert("Women-Only Policy", "Only verified female drivers can publish Women-Only rides.");
       return;
     }
     const vehicle = vehicles.find((v) => v.id === vehicleId);
@@ -64,6 +83,7 @@ export default function OfferRide() {
         price_per_seat: parseFloat(price) || 0,
         vehicle_type: vehicle.vehicle_type,
         notes,
+        women_only: womenOnly,
       });
       Alert.alert("Published!", "Your ride is now live for passengers to book.", [
         { text: "OK", onPress: () => router.replace("/(tabs)/rides") },
@@ -128,6 +148,33 @@ export default function OfferRide() {
             <TextInput testID="offer-stops" style={styles.input} placeholder="Intermediate stops (comma-separated)" placeholderTextColor={colors.onSurfaceTertiary} value={stops} onChangeText={setStops} />
           </View>
 
+          <View style={{ marginTop: spacing.sm }}>
+            <Text style={[styles.small, { marginBottom: 6 }]}>Popular highway pickup hubs:</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {HIGHWAY_HUBS.map((hub) => {
+                const added = stops.includes(hub);
+                return (
+                  <Pressable
+                    key={hub}
+                    onPress={() => addStop(hub)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: radius.pill,
+                      backgroundColor: added ? colors.brandPrimary : colors.surface,
+                      borderWidth: 1,
+                      borderColor: added ? colors.brandPrimary : colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: added ? "#fff" : colors.onSurfaceSecondary }}>
+                      {added ? "✓ " : "+ "}{hub}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
           <Text style={styles.sectionTitle}>When</Text>
           <View style={styles.card}>
             <TextInput testID="offer-date" style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={colors.onSurfaceTertiary} value={date} onChangeText={setDate} />
@@ -146,6 +193,21 @@ export default function OfferRide() {
               <TextInput testID="offer-price" style={styles.bigInput} keyboardType="number-pad" value={price} onChangeText={setPrice} />
             </View>
           </View>
+
+          <Text style={styles.sectionTitle}>Safety Preferences</Text>
+          <Pressable
+            style={[styles.card, { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg }]}
+            onPress={() => setWomenOnly(!womenOnly)}
+          >
+            <View style={{ flex: 1, marginRight: spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="woman" size={18} color="#D81B60" />
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.onSurface }}>Women-Only Ride</Text>
+              </View>
+              <Text style={styles.small}>Restricts booking exclusively to verified female passengers.</Text>
+            </View>
+            <Ionicons name={womenOnly ? "checkbox" : "square-outline"} size={24} color={womenOnly ? "#D81B60" : colors.onSurfaceTertiary} />
+          </Pressable>
 
           <Text style={styles.sectionTitle}>Notes (optional)</Text>
           <View style={styles.card}>
