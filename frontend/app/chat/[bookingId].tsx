@@ -83,7 +83,11 @@ export default function Chat() {
   const other = user?.id === booking?.owner_id ? booking?.passenger : booking?.owner;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.surface }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 25}
+    >
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}><Ionicons name="chevron-back" size={22} color={colors.onSurface} /></Pressable>
@@ -93,7 +97,7 @@ export default function Chat() {
           </View>
         </View>
 
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.list}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
           {messages.length === 0 && (
             <View style={styles.empty} testID="chat-empty">
               <Ionicons name="chatbubbles-outline" size={40} color={colors.onSurfaceTertiary} />

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
@@ -213,7 +213,10 @@ export default function Wallet() {
 
       {/* Topup Modal */}
       <Modal transparent visible={topupOpen} animationType="slide" onRequestClose={() => setTopupOpen(false)}>
-        <View style={styles.modalBg}>
+        <KeyboardAvoidingView
+          style={styles.modalBg}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Add money to wallet</Text>
             <Text style={styles.modalSub}>Secure gateway checkout via Razorpay or PhonePe.</Text>
@@ -261,12 +264,15 @@ export default function Wallet() {
               <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Withdraw Modal */}
       <Modal transparent visible={withdrawOpen} animationType="slide" onRequestClose={() => setWithdrawOpen(false)}>
-        <View style={styles.modalBg}>
+        <KeyboardAvoidingView
+          style={styles.modalBg}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Withdraw Earnings</Text>
             <Text style={styles.modalSub}>Minimum withdrawal limit: ₹200. Transferred via UPI or IMPS.</Text>
@@ -338,7 +344,7 @@ export default function Wallet() {
               <Text style={{ color: colors.onSurfaceSecondary, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

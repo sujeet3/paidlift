@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -137,9 +137,12 @@ export default function Vehicles() {
       </SafeAreaView>
 
       <Modal transparent visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalBg}>
+        <KeyboardAvoidingView
+          style={styles.modalBg}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View style={styles.modalCard}>
-            <ScrollView contentContainerStyle={{ padding: spacing.xl }}>
+            <ScrollView contentContainerStyle={{ padding: spacing.xl }} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>Add a Vehicle</Text>
               <Text style={styles.small}>Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
@@ -203,7 +206,7 @@ export default function Vehicles() {
               </Pressable>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

@@ -102,27 +102,39 @@ export default function Onboarding() {
   };
 
   return (
-    <View style={styles.root}>
-      <Image source={HERO} style={styles.hero} contentFit="cover" />
-      <LinearGradient
-        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.85)"]}
-        style={styles.scrim}
-      />
-      <SafeAreaView style={styles.headerArea} edges={["top"]}>
-        <View style={styles.brandBadge}>
-          <Ionicons name="car-sport" size={22} color={colors.onBrandPrimary} />
-          <Text style={styles.brandText}>PAID LIFT</Text>
-        </View>
-        <Text style={styles.headline}>Share the ride.{"\n"}Split the cost.</Text>
-        <Text style={styles.sub}>India&apos;s peer-to-peer highway rideshare — Aadhaar-verified drivers, fair pricing.</Text>
-      </SafeAreaView>
-
-      <KeyboardAvoidingView
-        style={styles.sheetWrap}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
       >
-        <SafeAreaView style={styles.sheet} edges={["bottom"]}>
-          <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }} keyboardShouldPersistTaps="handled">
+        <View style={styles.heroSection}>
+          <Image source={HERO} style={styles.hero} contentFit="cover" />
+          <LinearGradient
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.88)"]}
+            style={styles.scrim}
+          />
+          <SafeAreaView style={styles.headerArea} edges={["top"]}>
+            <View style={styles.brandBadge}>
+              <Image
+                source={require("@/assets/images/logo.png")}
+                style={styles.brandLogo}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={styles.headline}>Share the ride.{"\n"}Split the cost.</Text>
+            <Text style={styles.sub}>India&apos;s peer-to-peer highway rideshare — Aadhaar-verified drivers, fair pricing.</Text>
+          </SafeAreaView>
+        </View>
+
+        <View style={styles.sheet}>
+          <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
             {step === "phone" && (
               <View testID="step-phone">
                 <Text style={styles.stepTitle}>Enter your mobile number</Text>
@@ -249,10 +261,10 @@ export default function Onboarding() {
                 <PrimaryButton testID="finish-onboarding-button" label="Get Started" onPress={finish} loading={loading} />
               </View>
             )}
-          </ScrollView>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </View>
+          </SafeAreaView>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -300,29 +312,39 @@ function RoleCard({ active, onPress, icon, title, sub, testID }: any) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
-  hero: { position: "absolute", top: 0, left: 0, right: 0, height: "48%" },
-  scrim: { position: "absolute", top: 0, left: 0, right: 0, height: "48%" },
-  headerArea: { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+  scrollContent: { flexGrow: 1, backgroundColor: colors.surface },
+  heroSection: { minHeight: 280, position: "relative" },
+  hero: { ...StyleSheet.absoluteFillObject },
+  scrim: { ...StyleSheet.absoluteFillObject },
+  headerArea: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xxl },
   brandBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.brandPrimary,
+    backgroundColor: "#ffffff",
     alignSelf: "flex-start",
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  brandText: { color: colors.onBrandPrimary, fontWeight: "800", letterSpacing: 1 },
-  headline: { color: "#FFF", fontSize: 34, fontWeight: "800", marginTop: spacing.lg, lineHeight: 40 },
-  sub: { color: "rgba(255,255,255,0.85)", marginTop: spacing.sm, fontSize: 14, lineHeight: 20 },
-  sheetWrap: { position: "absolute", bottom: 0, left: 0, right: 0 },
+  brandLogo: {
+    width: 130,
+    height: 44,
+  },
+  headline: { color: "#FFF", fontSize: 32, fontWeight: "800", marginTop: spacing.md, lineHeight: 38 },
+  sub: { color: "rgba(255,255,255,0.85)", marginTop: spacing.xs, fontSize: 13, lineHeight: 18 },
   sheet: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
+    marginTop: -20,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    minHeight: 380,
   },
   stepTitle: { ...type.h2, marginBottom: spacing.xs },
   stepSub: { ...type.bodySm, marginBottom: spacing.lg },

@@ -1,6 +1,9 @@
-# PAID LIFT 🚗
+<p align="center">
+  <img src="frontend/assets/images/logo.png" alt="PAID LIFT Logo" width="280"/>
+</p>
 
-PAID LIFT is a modern, full-stack carpooling and ride-sharing mobile and web platform.
+# PAID LIFT INDIA PVT LTD 🚗
+> **Quick Book Your Safest Journey** — Modern peer-to-peer carpooling & ride-sharing platform with Aadhaar-verified drivers, live tracking, and transparent pricing.
 
 ---
 

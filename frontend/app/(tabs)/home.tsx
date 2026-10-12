@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 
 import { useUser } from "@/src/context/user";
@@ -49,6 +50,11 @@ export default function Home() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
+          <Image
+            source={require("@/assets/images/logo-transparent.png")}
+            style={styles.homeLogo}
+            contentFit="contain"
+          />
           <Text style={styles.hi}>Namaste,</Text>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{user?.name || "Traveler"}</Text>
@@ -228,6 +234,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.surface,
   },
+  homeLogo: { width: 110, height: 36, marginBottom: 4 },
   hi: { fontSize: 13, color: colors.onSurfaceSecondary },
   nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 2, flexWrap: "wrap" },
   name: { ...type.h2 },
