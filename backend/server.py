@@ -874,8 +874,26 @@ def read_root():
         "status": "ok",
         "message": "PaidLift Backend API is running",
         "docs": "/docs",
-        "api": "/api"
+        "api": "/api",
+        "health": "/health"
     }
+
+
+@app.get("/health")
+async def health_check():
+    try:
+        await client.admin.command('ping')
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "db_name": os.environ.get("DB_NAME", "paidlift")
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }
 
 
 # Include routers
