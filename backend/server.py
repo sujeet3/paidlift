@@ -905,9 +905,14 @@ app.include_router(build_storage_router(API_PUBLIC_URL))
 
 # Hardened CORS configuration
 allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
-if allowed_origins_env:
+if allowed_origins_env == "*":
+    allow_all_origins = True
+    allowed_origins = ["*"]
+elif allowed_origins_env:
+    allow_all_origins = False
     allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 else:
+    allow_all_origins = False
     allowed_origins = [
         "http://localhost:3000",
         "http://localhost:8081",
@@ -915,12 +920,15 @@ else:
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8081",
         "http://127.0.0.1:8001",
+        "https://paidlift.onrender.com",
+        "https://paidlift-admin-web.onrender.com",
     ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=True if not allow_all_origins else False,
     allow_origins=allowed_origins if allowed_origins else ["*"],
+    allow_origin_regex=r"https://.*\.onrender\.com" if not allow_all_origins else None,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )

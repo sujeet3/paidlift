@@ -9,6 +9,7 @@ set -e
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
+ADMIN_DIR="$ROOT_DIR/admin-web"
 
 # Colors
 GREEN='\033[0;32m'
@@ -30,6 +31,9 @@ cleanup() {
     fi
     if [ -n "$FRONTEND_PID" ]; then
         kill "$FRONTEND_PID" 2>/dev/null || true
+    fi
+    if [ -n "$ADMIN_PID" ]; then
+        kill "$ADMIN_PID" 2>/dev/null || true
     fi
     echo -e "${GREEN}✔ All services stopped.${NC}"
     exit 0
@@ -71,20 +75,25 @@ echo -e "\n${BLUE}[3/4] Verifying Dependencies...${NC}"
 if [ ! -d "$BACKEND_DIR/.venv" ]; then
     echo "Setting up Python virtual environment in backend/.venv..."
     python3 -m venv "$BACKEND_DIR/.venv"
-    "$BACKEND_DIR/.venv/bin/pip" install fastapi uvicorn motor pymongo pydantic python-dotenv httpx razorpay starlette requests pytest email-validator python-multipart
+    "$BACKEND_DIR/.venv/bin/python" -m pip install fastapi uvicorn motor pymongo pydantic python-dotenv httpx razorpay starlette requests pytest email-validator python-multipart
 fi
 
 if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
     echo "Installing frontend dependencies via yarn..."
     (cd "$FRONTEND_DIR" && yarn install)
 fi
+
+if [ ! -d "$ADMIN_DIR/node_modules" ]; then
+    echo "Installing admin web dependencies..."
+    (cd "$ADMIN_DIR" && npm install)
+fi
 echo -e "${GREEN}✔ Dependencies verified.${NC}"
 
-# 5. Launch Backend & Frontend
+# 5. Launch Backend, Frontend & Admin Web
 echo -e "\n${BLUE}[4/4] Launching Services...${NC}"
 
 # Start Backend
-"$BACKEND_DIR/.venv/bin/uvicorn" server:app --app-dir "$BACKEND_DIR" --host 0.0.0.0 --port 8001 --reload &
+"$BACKEND_DIR/.venv/bin/python" -m uvicorn server:app --app-dir "$BACKEND_DIR" --host 0.0.0.0 --port 8001 --reload &
 BACKEND_PID=$!
 echo -e "${GREEN}✔ Backend started (PID: $BACKEND_PID)${NC}"
 
@@ -97,12 +106,19 @@ npx expo start --web &
 FRONTEND_PID=$!
 echo -e "${GREEN}✔ Frontend started (PID: $FRONTEND_PID)${NC}"
 
+# Start Super Admin Web Dashboard
+cd "$ADMIN_DIR"
+npm run dev &
+ADMIN_PID=$!
+echo -e "${GREEN}✔ Super Admin Web started (PID: $ADMIN_PID)${NC}"
+
 echo -e "\n${GREEN}======================================================${NC}"
 echo -e "${GREEN} 🎉 PAID LIFT is now running!                         ${NC}"
+echo -e "${BLUE}  - Super Admin Web:   ${GREEN}http://localhost:3000${NC}"
 echo -e "${BLUE}  - Frontend Web:      ${GREEN}http://localhost:8081${NC}"
 echo -e "${BLUE}  - Backend API:       ${GREEN}http://localhost:8001/api${NC}"
 echo -e "${BLUE}  - API Documentation: ${GREEN}http://localhost:8001/docs${NC}"
-echo -e "${YELLOW} Press Ctrl+C anytime to stop both services.${NC}"
+echo -e "${YELLOW} Press Ctrl+C anytime to stop all services.${NC}"
 echo -e "${GREEN}======================================================${NC}\n"
 
 # Wait indefinitely until interrupted

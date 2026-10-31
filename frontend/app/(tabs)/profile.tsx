@@ -99,7 +99,6 @@ export default function Profile() {
         </Section>
 
         <Section title="More">
-          <Row icon="shield-checkmark" label="Admin panel" onPress={() => router.push("/admin")} testID="row-admin" />
           <Row icon="information-circle" label="About PAID LIFT" onPress={() => Alert.alert("PAID LIFT", "Peer-to-peer ride-sharing for India.\nVersion 1.0 (MVP)")} testID="row-about" />
           <Row icon="log-out" label="Sign out" onPress={handleSignOut} iconColor={colors.error} testID="row-signout" />
         </Section>

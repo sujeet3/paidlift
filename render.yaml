@@ -11,5 +11,20 @@ services:
         value: 3.11.9
       - key: DB_NAME
         value: paidlift
+      - key: ADMIN_SECRET_KEY
+        value: paidlift_superadmin_secret_2026
+      - key: ALLOWED_ORIGINS
+        value: "*"
       - key: MONGO_URL
         sync: false
+
+  - type: staticSite
+    name: paidlift-admin-web
+    rootDir: admin-web
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
