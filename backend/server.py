@@ -908,6 +908,10 @@ app.include_router(build_storage_router(API_PUBLIC_URL))
 # Serve Super Admin Web Dashboard
 admin_dist_dir = os.path.join(os.path.dirname(__file__), "admin_dist")
 if os.path.isdir(admin_dist_dir):
+    assets_dir = os.path.join(admin_dist_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="admin_assets_root")
+
     @app.api_route("/admin", methods=["GET", "HEAD"], include_in_schema=False)
     @app.api_route("/admin/", methods=["GET", "HEAD"], include_in_schema=False)
     async def serve_admin_root():
