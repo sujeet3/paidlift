@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -902,6 +904,23 @@ app.include_router(build_payments_router(db, API_PUBLIC_URL))
 app.include_router(build_maps_router(db))
 app.include_router(build_admin_router(db))
 app.include_router(build_storage_router(API_PUBLIC_URL))
+
+# Serve Super Admin Web Dashboard
+admin_dist_dir = os.path.join(os.path.dirname(__file__), "admin_dist")
+if os.path.isdir(admin_dist_dir):
+    @app.api_route("/admin", methods=["GET", "HEAD"], include_in_schema=False)
+    @app.api_route("/admin/", methods=["GET", "HEAD"], include_in_schema=False)
+    async def serve_admin_root():
+        index_path = os.path.join(admin_dist_dir, "index.html")
+        return FileResponse(index_path)
+
+    @app.api_route("/admin/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    async def serve_admin_spa(full_path: str):
+        file_path = os.path.join(admin_dist_dir, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_path = os.path.join(admin_dist_dir, "index.html")
+        return FileResponse(index_path)
 
 # Hardened CORS configuration
 allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
